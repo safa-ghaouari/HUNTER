@@ -1,0 +1,42 @@
+# HUNTER backend dependencies
+# NOTE: Docker builds install these via layered RUN commands in Dockerfile
+#       (not via this file) to avoid pip resolution-too-deep errors.
+#       This file is kept for local development reference only.
+
+# FastAPI stack
+fastapi==0.111.0
+uvicorn==0.29.0
+SQLAlchemy==2.0.30
+asyncpg==0.29.0
+alembic==1.13.1
+pyjwt==2.8.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
+casbin==1.36.0
+pydantic==2.7.4
+pydantic-settings==2.2.1
+python-dotenv==1.0.1
+
+# Storage / queuing / monitoring
+minio==7.2.7
+hvac==2.1.0
+prometheus-fastapi-instrumentator==7.0.0
+elasticsearch==8.13.0
+celery[redis]==5.4.0
+requests==2.32.3
+websockets==12.0
+
+# Data collection / scraping
+feedparser==6.0.11
+beautifulsoup4==4.12.3
+lxml[html_clean]==5.2.2
+newspaper4k==0.9.3.1
+
+# Phase 3 — NLP / ML
+# torch==2.2.2  (installed from PyTorch CPU wheel index — see Dockerfile)
+numpy==1.26.4
+scikit-learn==1.4.2
+spacy==3.7.4
+transformers==4.40.1
+langchain==0.2.6
+langchain-community==0.2.6

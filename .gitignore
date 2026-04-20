@@ -1,0 +1,17 @@
+.env
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+dist/
+build/
+node_modules/
+frontend/build/
+frontend/node_modules/
+backend/.venv/
+backend/venv/
+venv/
+.DS_Store
+.trivy-cache/

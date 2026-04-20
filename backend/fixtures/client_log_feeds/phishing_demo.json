@@ -1,0 +1,36 @@
+{
+  "logs": [
+    {
+      "timestamp": "2026-04-14T20:58:00Z",
+      "message": "Proxy observed callback to https://login.badcorp-secure.com/update from FIN-WKS-22 with destination 198.51.100.77 and sha256 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa after phishing delivery.",
+      "hostname": "FIN-WKS-22",
+      "ip_address": "10.10.5.22",
+      "source": "secureworks_demo",
+      "event_type": "proxy",
+      "asset_type": "workstation",
+      "os": "Windows 11",
+      "external_id": "demo-proxy-1",
+      "raw_event": {
+        "username": "alice",
+        "action": "allowed",
+        "tenant": "demo"
+      }
+    },
+    {
+      "timestamp": "2026-04-14T20:56:00Z",
+      "message": "Email gateway saw malicious sender alerts@badcorp-secure.com referencing CVE-2026-12345 and host login.badcorp-secure.com for FIN-WKS-22.",
+      "hostname": "FIN-WKS-22",
+      "ip_address": "10.10.5.22",
+      "source": "secureworks_demo",
+      "event_type": "mail",
+      "asset_type": "workstation",
+      "os": "Windows 11",
+      "external_id": "demo-mail-1",
+      "raw_event": {
+        "queue": "phishing",
+        "verdict": "suspicious",
+        "tenant": "demo"
+      }
+    }
+  ]
+}
