@@ -15,3 +15,6 @@ backend/venv/
 venv/
 .DS_Store
 .trivy-cache/
+.env.backup-*
+backups/*.tgz
+test_report.pdf

@@ -6,7 +6,11 @@ ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential curl libpq-dev \
+    && apt-get install -y --no-install-recommends \
+        build-essential curl libpq-dev postgresql-client \
+        libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b \
+        libcairo2 libffi-dev \
+        libxml2 libxslt1.1 shared-mime-info fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
@@ -62,6 +66,16 @@ RUN pip install --no-cache-dir "transformers==4.40.1"
 # ── Layer 6: LangChain (most complex dep graph — fully isolated) ──────────────
 RUN pip install --no-cache-dir "langchain==0.2.6"
 RUN pip install --no-cache-dir "langchain-community==0.2.6"
+
+# ── Layer 7: Report generation ────────────────────────────────────────────────
+RUN pip install --no-cache-dir "weasyprint==60.2" "pydyf==0.8.0" "jinja2==3.1.4"
+
+# ── Layer 8: Test dependencies ────────────────────────────────────────────────
+RUN pip install --no-cache-dir \
+    "pytest==8.2.2" \
+    "pytest-asyncio==0.23.7" \
+    "httpx==0.27.0" \
+    "pytest-mock==3.14.0"
 
 # ── spaCy model — direct wheel install (avoids malformed URL from `spacy download`) ──
 RUN pip install --no-cache-dir \

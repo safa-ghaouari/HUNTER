@@ -209,7 +209,7 @@ services:
       - hunter_net
 
   thehive:
-    image: strangebee/thehive:5.2
+    image: strangebee/thehive:5.4.11-1
     container_name: hunter-thehive
     restart: unless-stopped
     depends_on:
@@ -221,6 +221,8 @@ services:
       [
         "--secret",
         "${TH_SECRET}",
+        "--index-backend",
+        "elasticsearch",
         "--es-hostnames",
         "elasticsearch",
         "--cql-hostnames",
@@ -236,7 +238,7 @@ services:
       - hunter_net
 
   cortex:
-    image: thehiveproject/cortex:3.1
+    image: thehiveproject/cortex:4.0.1-1
     container_name: hunter-cortex
     restart: unless-stopped
     depends_on:
@@ -298,7 +300,7 @@ services:
     env_file:
       - .env
     environment:
-      VAULT_ADDR: http://0.0.0.0:8200
+      VAULT_ADDR: http://127.0.0.1:8200
       VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_DEV_ROOT_TOKEN_ID}
     volumes:
       - vault_data:/vault/data
@@ -310,6 +312,24 @@ services:
       timeout: 5s
       retries: 15
       start_period: 20s
+    networks:
+      - hunter_net
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: hunter-ollama
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 10 && ollama pull llama3.2 && wait"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags >/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
     networks:
       - hunter_net
 
@@ -431,7 +451,7 @@ services:
     container_name: hunter-nginx
     restart: unless-stopped
     environment:
-      HUNTER_TLS_CERT_CN: localhost
+      HUNTER_TLS_CERT_CN: ${HUNTER_TLS_CERT_CN:-localhost}
     depends_on:
       backend:
         condition: service_started
@@ -464,3 +484,4 @@ volumes:
   prometheus_data:
   grafana_data:
   vault_data:
+  ollama_data:

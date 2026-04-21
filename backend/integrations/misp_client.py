@@ -171,11 +171,6 @@ class MispClient:
         return response.get("Attribute", response)
 
     def create_event_with_iocs(self, *, title: str, iocs: Iterable[IoC]) -> dict:
-        event = self.create_event(info=title)
-        event_id = str(event.get("id") or event.get("uuid") or "")
-        if not event_id:
-            raise MispClientError(f"Unable to determine the created MISP event identifier: {event}")
-
         ioc_list = list(iocs)[:200]  # cap at 200 to avoid unbounded sync
         attributes = []
         for ioc in ioc_list:
@@ -188,17 +183,26 @@ class MispClient:
                 "comment": ioc.description or "",
             })
 
-        if attributes:
-            self.request(
-                "POST",
-                f"/attributes/massAdd/{event_id}",
-                json_payload={"Attribute": attributes},
-            )
+        payload = {
+            "Event": {
+                "info": title,
+                "distribution": 0,
+                "analysis": 2,
+                "threat_level_id": 2,
+                "Attribute": attributes,
+            }
+        }
+        response = self.request("POST", "/events/add", json_payload=payload)
+        event = response.get("Event", response)
+        event_id = str(event.get("id") or event.get("uuid") or "")
+        if not event_id:
+            raise MispClientError(f"Unable to determine the created MISP event identifier: {event}")
 
+        attrs_in_response = event.get("Attribute") or []
         return {
-            "event_id": str(event.get("id") or event_id),
+            "event_id": event_id,
             "event_uuid": str(event.get("uuid") or event_id),
-            "attributes_added": len(attributes),
+            "attributes_added": len(attrs_in_response) or len(attributes),
         }
 
 

@@ -5,7 +5,6 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm.attributes import flag_modified
 
-from backend.config import settings
 from backend.db.database import AsyncSessionLocal
 from backend.models.enums import JobStatus, JobType, ReportStatus, ReportType, Severity, ThreatType
 from backend.models.hunting_job import HuntingJob
@@ -13,52 +12,11 @@ from backend.models.ioc import IoC
 from backend.models.report import Report
 from backend.models.source import Source
 from backend.models.threat import Threat
-from backend.storage.minio_client import upload_file
 from backend.services.correlation import correlate_iocs_for_client
 from backend.services.intelligence_sync import sync_collection_iocs
 from backend.services.ioc_extraction import extract_iocs
 from backend.services.source_collection import collect_source_entries
 from backend.tasks.nlp_pipeline import run_nlp_for_job
-
-
-def _build_pdf(title: str, summary_lines: list[str]) -> bytes:
-    escaped_title = title.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
-    body_lines = [escaped_title, *summary_lines]
-    content_parts = ["BT", "/F1 18 Tf", "72 740 Td", f"({body_lines[0]}) Tj"]
-    current_y = 712
-    for line in body_lines[1:]:
-        escaped_line = line.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
-        content_parts.extend(["/F1 12 Tf", f"72 {current_y} Td", f"({escaped_line}) Tj"])
-        current_y -= 20
-    content_parts.append("ET")
-    content = "\n".join(content_parts).encode("utf-8")
-
-    objects = [
-        b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
-        b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
-        b"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n",
-        f"4 0 obj\n<< /Length {len(content)} >>\nstream\n".encode("utf-8") + content + b"\nendstream\nendobj\n",
-        b"5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
-    ]
-
-    pdf = bytearray(b"%PDF-1.4\n")
-    offsets = [0]
-    for obj in objects:
-        offsets.append(len(pdf))
-        pdf.extend(obj)
-
-    xref_offset = len(pdf)
-    pdf.extend(f"xref\n0 {len(objects) + 1}\n".encode("utf-8"))
-    pdf.extend(b"0000000000 65535 f \n")
-    for offset in offsets[1:]:
-        pdf.extend(f"{offset:010d} 00000 n \n".encode("utf-8"))
-    pdf.extend(
-        (
-            f"trailer\n<< /Root 1 0 R /Size {len(objects) + 1} >>\n"
-            f"startxref\n{xref_offset}\n%%EOF\n"
-        ).encode("utf-8")
-    )
-    return bytes(pdf)
 
 
 async def _resolve_entries(job: HuntingJob, session) -> tuple[list[dict[str, str]], list[str]]:
@@ -272,40 +230,35 @@ async def _run_full_hunt_job(job: HuntingJob, session, entries: list[dict[str, s
         session.add(report)
         await session.flush()
 
-        summary_lines = [
-            f"Theme: {theme}",
-            f"Sources used: {', '.join(sorted(source_names))}",
-            f"Collected entries: {len(entries)}",
-            f"IoCs extracted: {len(deduplicated_iocs)}",
-            f"Alerts created: {alerts_created}",
-            f"Assets impacted: {impacted_assets}",
-        ]
-        pdf_bytes = _build_pdf(report.title, summary_lines)
-        object_key = f"reports/{job.client_id}/{report.id}.pdf"
-        upload_file(
-            bucket=settings.minio_bucket,
-            name=object_key,
-            data=pdf_bytes,
-            content_type="application/pdf",
-        )
-        report.status = ReportStatus.READY
-        report.minio_object_key = object_key
-        report.file_size_bytes = len(pdf_bytes)
+        # Commit current job state so report_gen can read it back
+        job.result_summary = {
+            "theme": theme,
+            "sources_processed": len(source_names),
+            "items_processed": len(entries),
+            "iocs_extracted": len(deduplicated_iocs),
+            "alerts_created": alerts_created,
+            "matched_assets": impacted_assets,
+            "notes": notes,
+            "nlp": nlp_result,
+            **sync_summary,
+        }
+        flag_modified(job, "result_summary")
+        await session.commit()
+
+        from backend.tasks.report_gen import generate_report_pdf
+        try:
+            await generate_report_pdf(report.id, job.id)
+        except Exception as pdf_exc:
+            report.status = ReportStatus.FAILED
+            await session.commit()
+            raise RuntimeError(f"PDF generation failed: {pdf_exc}") from pdf_exc
+
         report_id = str(report.id)
 
-    job.result_summary = {
-        "theme": theme,
-        "sources_processed": len(source_names),
-        "items_processed": len(entries),
-        "iocs_extracted": len(deduplicated_iocs),
-        "alerts_created": alerts_created,
-        "matched_assets": impacted_assets,
-        "report_id": report_id,
-        "notes": notes,
-        "nlp": nlp_result,
-        **sync_summary,
-    }
-    flag_modified(job, "result_summary")
+    # Append report_id now that generation is complete
+    if job.result_summary is not None:
+        job.result_summary["report_id"] = report_id
+        flag_modified(job, "result_summary")
 
 
 async def run_hunting_job(job_id: UUID) -> None:

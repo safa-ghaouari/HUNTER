@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>{{ report.title }}</title>
+<style>
+/* ── Page setup ─────────────────────────────────────────────────────────── */
+@page {
+  size: A4;
+  margin: 18mm 16mm 22mm 16mm;
+  @bottom-center {
+    content: "HUNTER Threat Intelligence Platform  •  " string(client-name) "  •  Page " counter(page) " of " counter(pages);
+    font-family: 'Liberation Sans', Arial, sans-serif;
+    font-size: 8pt;
+    color: #64748b;
+    border-top: 1px solid #1e293b;
+    padding-top: 4pt;
+  }
+  @top-right {
+    content: string(tlp-label);
+    font-family: 'Liberation Sans', Arial, sans-serif;
+    font-size: 8pt;
+    font-weight: bold;
+    padding-bottom: 4pt;
+    border-bottom: 1px solid #1e293b;
+  }
+}
+
+@page cover {
+  margin: 0;
+  @bottom-center { content: none; }
+  @top-right     { content: none; }
+}
+
+/* ── Base ───────────────────────────────────────────────────────────────── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Liberation Sans', Arial, sans-serif;
+  font-size: 9.5pt;
+  color: #e2e8f0;
+  background: #0f172a;
+  line-height: 1.55;
+}
+
+/* ── String anchors for running headers ─────────────────────────────────── */
+#client-name-anchor { string-set: client-name content(); position: absolute; overflow: hidden; width: 0; height: 0; }
+#tlp-anchor         { string-set: tlp-label   content(); position: absolute; overflow: hidden; width: 0; height: 0; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   COVER PAGE
+   ═══════════════════════════════════════════════════════════════════════════ */
+.cover {
+  page: cover;
+  page-break-after: always;
+  background: #0f172a;
+  width: 210mm;
+  height: 297mm;
+  display: block;
+  position: relative;
+  padding: 0;
+}
+
+.cover-accent-bar {
+  background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%);
+  height: 6mm;
+  width: 100%;
+}
+
+.cover-body {
+  padding: 22mm 18mm 0 18mm;
+}
+
+.cover-logo-line {
+  display: flex;
+  align-items: center;
+  gap: 10pt;
+  margin-bottom: 10mm;
+}
+
+.cover-logo-icon {
+  width: 36pt;
+  height: 36pt;
+  background: linear-gradient(135deg, #0ea5e9, #6366f1);
+  border-radius: 8pt;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20pt;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: -1pt;
+  line-height: 1;
+  padding: 6pt 8pt;
+}
+
+.cover-platform-name {
+  font-size: 13pt;
+  font-weight: 700;
+  color: #0ea5e9;
+  letter-spacing: 3pt;
+  text-transform: uppercase;
+}
+
+.cover-platform-sub {
+  font-size: 8pt;
+  color: #64748b;
+  letter-spacing: 1.5pt;
+  text-transform: uppercase;
+  margin-top: 1pt;
+}
+
+.cover-divider {
+  border: none;
+  border-top: 1px solid #1e3a5f;
+  margin: 6mm 0 10mm 0;
+}
+
+.cover-report-type-badge {
+  display: inline-block;
+  background: rgba(14,165,233,0.15);
+  border: 1px solid #0ea5e9;
+  color: #0ea5e9;
+  font-size: 8pt;
+  font-weight: 700;
+  letter-spacing: 2pt;
+  text-transform: uppercase;
+  padding: 3pt 10pt;
+  border-radius: 3pt;
+  margin-bottom: 6mm;
+}
+
+.cover-title {
+  font-size: 24pt;
+  font-weight: 700;
+  color: #f1f5f9;
+  line-height: 1.2;
+  margin-bottom: 4mm;
+}
+
+.cover-subtitle {
+  font-size: 12pt;
+  color: #94a3b8;
+  margin-bottom: 14mm;
+}
+
+.cover-meta-grid {
+  display: table;
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 14mm;
+}
+
+.cover-meta-row { display: table-row; }
+
+.cover-meta-label {
+  display: table-cell;
+  font-size: 8pt;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 1pt;
+  font-weight: 700;
+  padding: 4pt 0;
+  width: 36mm;
+  vertical-align: top;
+}
+
+.cover-meta-value {
+  display: table-cell;
+  font-size: 9.5pt;
+  color: #e2e8f0;
+  padding: 4pt 0;
+  vertical-align: top;
+}
+
+.cover-tlp-section {
+  margin-top: auto;
+  border-top: 1px solid #1e293b;
+  padding-top: 5mm;
+  margin-top: 18mm;
+}
+
+.cover-bottom-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #020617;
+  padding: 5mm 18mm;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cover-bottom-left { font-size: 8pt; color: #475569; }
+.cover-bottom-right { font-size: 8pt; color: #475569; text-align: right; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SECTION LAYOUT
+   ═══════════════════════════════════════════════════════════════════════════ */
+.section {
+  margin-bottom: 10mm;
+  page-break-inside: avoid;
+}
+
+.section-break { page-break-before: always; }
+
+.section-title {
+  font-size: 13pt;
+  font-weight: 700;
+  color: #0ea5e9;
+  border-bottom: 2px solid #1e3a5f;
+  padding-bottom: 3pt;
+  margin-bottom: 5mm;
+  text-transform: uppercase;
+  letter-spacing: 1pt;
+}
+
+.section-title-icon {
+  display: inline-block;
+  width: 4pt;
+  height: 12pt;
+  background: linear-gradient(180deg, #0ea5e9, #6366f1);
+  border-radius: 2pt;
+  margin-right: 6pt;
+  vertical-align: middle;
+  margin-top: -2pt;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   STAT CARDS (Executive Summary)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.stat-grid {
+  display: table;
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 4pt 0;
+  margin-bottom: 6mm;
+}
+
+.stat-row { display: table-row; }
+
+.stat-card {
+  display: table-cell;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 6pt;
+  padding: 8pt 10pt;
+  text-align: center;
+  vertical-align: top;
+  width: 16.6%;
+}
+
+.stat-number {
+  font-size: 20pt;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 3pt;
+}
+
+.stat-label {
+  font-size: 7.5pt;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.8pt;
+  line-height: 1.3;
+}
+
+.stat-cyan   { color: #0ea5e9; }
+.stat-red    { color: #ef4444; }
+.stat-orange { color: #f97316; }
+.stat-yellow { color: #eab308; }
+.stat-green  { color: #22c55e; }
+.stat-purple { color: #a855f7; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BADGES
+   ═══════════════════════════════════════════════════════════════════════════ */
+.badge {
+  display: inline-block;
+  font-size: 7.5pt;
+  font-weight: 700;
+  padding: 1.5pt 6pt;
+  border-radius: 3pt;
+  text-transform: uppercase;
+  letter-spacing: 0.5pt;
+  white-space: nowrap;
+}
+
+/* Severity */
+.badge-critical { background: rgba(239,68,68,0.2);  color: #ef4444; border: 1px solid rgba(239,68,68,0.4);  }
+.badge-high     { background: rgba(249,115,22,0.2); color: #f97316; border: 1px solid rgba(249,115,22,0.4); }
+.badge-medium   { background: rgba(234,179,8,0.2);  color: #eab308; border: 1px solid rgba(234,179,8,0.4);  }
+.badge-low      { background: rgba(34,197,94,0.2);  color: #22c55e; border: 1px solid rgba(34,197,94,0.4);  }
+.badge-info     { background: rgba(99,102,241,0.2); color: #818cf8; border: 1px solid rgba(99,102,241,0.4); }
+
+/* TLP */
+.badge-tlp-clear  { background: rgba(255,255,255,0.1); color: #f1f5f9; border: 1px solid rgba(255,255,255,0.2); }
+.badge-tlp-green  { background: rgba(34,197,94,0.2);   color: #22c55e; border: 1px solid rgba(34,197,94,0.4);  }
+.badge-tlp-amber  { background: rgba(234,179,8,0.2);   color: #eab308; border: 1px solid rgba(234,179,8,0.4);  }
+.badge-tlp-red    { background: rgba(239,68,68,0.2);   color: #ef4444; border: 1px solid rgba(239,68,68,0.4);  }
+
+/* IoC type */
+.badge-ioc {
+  background: rgba(14,165,233,0.12);
+  color: #38bdf8;
+  border: 1px solid rgba(14,165,233,0.3);
+  font-size: 7pt;
+}
+
+/* ATT&CK technique */
+.badge-technique {
+  background: rgba(168,85,247,0.15);
+  color: #c084fc;
+  border: 1px solid rgba(168,85,247,0.3);
+  font-size: 7pt;
+  margin: 1pt 2pt 1pt 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TABLES
+   ═══════════════════════════════════════════════════════════════════════════ */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 8.5pt;
+  margin-bottom: 4mm;
+}
+
+.data-table th {
+  background: #1e3a5f;
+  color: #7dd3fc;
+  font-size: 7.5pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.7pt;
+  padding: 6pt 8pt;
+  text-align: left;
+  border-bottom: 2px solid #0ea5e9;
+}
+
+.data-table td {
+  padding: 5pt 8pt;
+  border-bottom: 1px solid #1e293b;
+  color: #cbd5e1;
+  vertical-align: middle;
+}
+
+.data-table tr:nth-child(even) td { background: #111827; }
+.data-table tr:hover td           { background: #1a2744; }
+
+.data-table .col-value {
+  font-family: 'Liberation Mono', 'Courier New', monospace;
+  font-size: 7.5pt;
+  color: #93c5fd;
+  word-break: break-all;
+  max-width: 80mm;
+}
+
+.data-table .col-confidence {
+  text-align: center;
+  font-size: 8pt;
+  font-weight: 700;
+}
+
+/* Confidence color scale */
+.conf-high   { color: #22c55e; }
+.conf-medium { color: #eab308; }
+.conf-low    { color: #ef4444; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   INFO BOXES
+   ═══════════════════════════════════════════════════════════════════════════ */
+.info-box {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-left: 4px solid #0ea5e9;
+  border-radius: 4pt;
+  padding: 8pt 10pt;
+  margin-bottom: 4mm;
+  font-size: 9pt;
+  color: #cbd5e1;
+  line-height: 1.6;
+}
+
+.info-box p { margin-bottom: 4pt; }
+.info-box p:last-child { margin-bottom: 0; }
+
+.warning-box {
+  background: rgba(234,179,8,0.07);
+  border: 1px solid rgba(234,179,8,0.25);
+  border-left: 4px solid #eab308;
+  border-radius: 4pt;
+  padding: 8pt 10pt;
+  margin-bottom: 4mm;
+  font-size: 9pt;
+  color: #fef08a;
+}
+
+.alert-box {
+  background: rgba(239,68,68,0.07);
+  border: 1px solid rgba(239,68,68,0.25);
+  border-left: 4px solid #ef4444;
+  border-radius: 4pt;
+  padding: 8pt 10pt;
+  margin-bottom: 4mm;
+  font-size: 9pt;
+  color: #fca5a5;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DETAIL TABLE (key-value pairs)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 4mm;
+}
+
+.detail-table td {
+  padding: 4pt 8pt;
+  border-bottom: 1px solid #1e293b;
+  font-size: 9pt;
+}
+
+.detail-table td:first-child {
+  color: #64748b;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 7.5pt;
+  letter-spacing: 0.5pt;
+  width: 40mm;
+  white-space: nowrap;
+}
+
+.detail-table td:last-child { color: #e2e8f0; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THREAT CARD
+   ═══════════════════════════════════════════════════════════════════════════ */
+.threat-card {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 6pt;
+  padding: 10pt 12pt;
+  margin-bottom: 4mm;
+  page-break-inside: avoid;
+}
+
+.threat-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6pt;
+}
+
+.threat-name {
+  font-size: 11pt;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+
+.threat-desc {
+  font-size: 8.5pt;
+  color: #94a3b8;
+  line-height: 1.55;
+  margin-bottom: 6pt;
+}
+
+.threat-techniques { margin-top: 4pt; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RECOMMENDATIONS
+   ═══════════════════════════════════════════════════════════════════════════ */
+.rec-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.rec-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8pt;
+  padding: 6pt 10pt;
+  border-bottom: 1px solid #1e293b;
+  font-size: 9pt;
+  color: #cbd5e1;
+}
+
+.rec-list li:last-child { border-bottom: none; }
+
+.rec-priority {
+  flex-shrink: 0;
+  width: 16pt;
+  height: 16pt;
+  border-radius: 50%;
+  font-size: 7.5pt;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1pt;
+}
+
+.rec-p1 { background: rgba(239,68,68,0.25);  color: #ef4444; }
+.rec-p2 { background: rgba(249,115,22,0.25); color: #f97316; }
+.rec-p3 { background: rgba(234,179,8,0.25);  color: #eab308; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MISC UTILITIES
+   ═══════════════════════════════════════════════════════════════════════════ */
+.mono { font-family: 'Liberation Mono', 'Courier New', monospace; font-size: 8pt; color: #93c5fd; }
+.text-muted { color: #64748b; }
+.text-sm    { font-size: 8pt; }
+.mb-2       { margin-bottom: 2mm; }
+.mb-4       { margin-bottom: 4mm; }
+
+.no-data {
+  text-align: center;
+  color: #475569;
+  font-style: italic;
+  padding: 12pt;
+  font-size: 9pt;
+}
+</style>
+</head>
+<body>
+
+<!-- Running header string anchors -->
+<span id="client-name-anchor">{{ client.name }}</span>
+<span id="tlp-anchor">TLP:{{ report.period_start | default('') and '' }}{% if iocs %}{{ iocs[0].tlp.value | upper }}{% else %}AMBER{% endif %}</span>
+
+<!-- ══════════════════════════════════════════════════════════
+     COVER PAGE
+     ══════════════════════════════════════════════════════════ -->
+<div class="cover">
+  <div class="cover-accent-bar"></div>
+  <div class="cover-body">
+
+    <div class="cover-logo-line">
+      <div class="cover-logo-icon">H</div>
+      <div>
+        <div class="cover-platform-name">HUNTER</div>
+        <div class="cover-platform-sub">Automated Threat Hunting Platform</div>
+      </div>
+    </div>
+
+    <hr class="cover-divider"/>
+
+    <div class="cover-report-type-badge">Threat Hunt Report</div>
+
+    <div class="cover-title">{{ report.title }}</div>
+    <div class="cover-subtitle">Threat Intelligence &amp; Indicator Analysis</div>
+
+    <table class="cover-meta-grid">
+      <tr class="cover-meta-row">
+        <td class="cover-meta-label">Client</td>
+        <td class="cover-meta-value">{{ client.name }}</td>
+      </tr>
+      <tr class="cover-meta-row">
+        <td class="cover-meta-label">Hunt Theme</td>
+        <td class="cover-meta-value">{{ theme | title }}</td>
+      </tr>
+      <tr class="cover-meta-row">
+        <td class="cover-meta-label">Report Date</td>
+        <td class="cover-meta-value">{{ generated_at }}</td>
+      </tr>
+      <tr class="cover-meta-row">
+        <td class="cover-meta-label">Period Covered</td>
+        <td class="cover-meta-value">{{ period_start }} – {{ period_end }}</td>
+      </tr>
+      <tr class="cover-meta-row">
+        <td class="cover-meta-label">Prepared by</td>
+        <td class="cover-meta-value">{{ analyst_email }}</td>
+      </tr>
+      <tr class="cover-meta-row">
+        <td class="cover-meta-label">Classification</td>
+        <td class="cover-meta-value">
+          <span class="badge badge-tlp-amber">TLP:AMBER</span>&nbsp;
+          <span class="text-muted text-sm">— Limited distribution, need-to-know basis</span>
+        </td>
+      </tr>
+    </table>
+
+    <div class="cover-tlp-section">
+      <p class="text-muted text-sm">
+        This document contains sensitive threat intelligence produced by the HUNTER platform.
+        Distribution is restricted to authorised security personnel only.
+        Do not forward or reproduce without prior authorisation.
+      </p>
+    </div>
+
+  </div>
+
+  <div class="cover-bottom-bar">
+    <div class="cover-bottom-left">
+      Report ID: <span class="mono">{{ report_id }}</span><br/>
+      Hunt Job:  <span class="mono">{{ job_id }}</span>
+    </div>
+    <div class="cover-bottom-right">
+      HUNTER Platform v1.0<br/>
+      Generated {{ generated_at }}
+    </div>
+  </div>
+</div><!-- /cover -->
+
+
+<!-- ══════════════════════════════════════════════════════════
+     1. EXECUTIVE SUMMARY
+     ══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title"><span class="section-title-icon"></span>Executive Summary</div>
+
+  <!-- KPI stat cards -->
+  <table class="stat-grid">
+    <tr class="stat-row">
+      <td class="stat-card">
+        <div class="stat-number stat-cyan">{{ stats.iocs_total }}</div>
+        <div class="stat-label">IoCs<br/>Extracted</div>
+      </td>
+      <td class="stat-card">
+        <div class="stat-number stat-red">{{ stats.iocs_critical_high }}</div>
+        <div class="stat-label">Critical &amp;<br/>High Severity</div>
+      </td>
+      <td class="stat-card">
+        <div class="stat-number stat-orange">{{ stats.alerts_total }}</div>
+        <div class="stat-label">Alerts<br/>Created</div>
+      </td>
+      <td class="stat-card">
+        <div class="stat-number stat-yellow">{{ stats.assets_impacted }}</div>
+        <div class="stat-label">Assets<br/>Impacted</div>
+      </td>
+      <td class="stat-card">
+        <div class="stat-number stat-purple">{{ stats.sources_processed }}</div>
+        <div class="stat-label">Sources<br/>Processed</div>
+      </td>
+      <td class="stat-card">
+        <div class="stat-number stat-green">{{ stats.items_collected }}</div>
+        <div class="stat-label">Items<br/>Collected</div>
+      </td>
+    </tr>
+  </table>
+
+  <!-- AI-generated summary -->
+  {% if ai_summary %}
+  <div class="info-box">
+    {% for paragraph in ai_summary.split('\n') %}
+      {% if paragraph.strip() %}<p>{{ paragraph.strip() }}</p>{% endif %}
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if stats.iocs_critical_high > 0 %}
+  <div class="alert-box">
+    <strong>⚠ High-Priority Findings:</strong>
+    {{ stats.iocs_critical_high }} critical or high-severity indicator(s) were identified during this hunt.
+    Immediate review and containment actions are recommended.
+  </div>
+  {% endif %}
+
+  {% if stats.alerts_total > 0 %}
+  <div class="warning-box">
+    <strong>Alert Notice:</strong>
+    {{ stats.alerts_total }} correlation alert(s) were generated against the client environment.
+    {% if stats.assets_impacted > 0 %}
+    {{ stats.assets_impacted }} asset(s) may be impacted and require investigation.
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════
+     2. HUNT DETAILS
+     ══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title"><span class="section-title-icon"></span>Hunt Details</div>
+  <table class="detail-table">
+    <tr><td>Hunt Theme</td>     <td>{{ theme | title }}</td></tr>
+    <tr><td>Job ID</td>         <td class="mono">{{ job_id }}</td></tr>
+    <tr><td>Report ID</td>      <td class="mono">{{ report_id }}</td></tr>
+    <tr><td>Period Start</td>   <td>{{ period_start }}</td></tr>
+    <tr><td>Period End</td>     <td>{{ period_end }}</td></tr>
+    <tr><td>Generated At</td>   <td>{{ generated_at }}</td></tr>
+    <tr><td>Analyst</td>        <td>{{ analyst_email }}</td></tr>
+    <tr><td>Client</td>         <td>{{ client.name }}</td></tr>
+    <tr><td>Sources Used</td>   <td>{{ stats.sources_processed }} active source(s)</td></tr>
+    <tr><td>Methodology</td>    <td>RSS/Web collection → spaCy NER → SecBERT classification → sklearn clustering → LangChain RAG → MISP/OpenCTI sync → Elasticsearch correlation</td></tr>
+  </table>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════
+     3. THREAT INTELLIGENCE
+     ══════════════════════════════════════════════════════════ -->
+{% if threats %}
+<div class="section section-break">
+  <div class="section-title"><span class="section-title-icon"></span>Identified Threats</div>
+
+  {% for threat in threats %}
+  <div class="threat-card">
+    <div class="threat-card-header">
+      <div>
+        <div class="threat-name">{{ threat.name }}</div>
+        <span class="badge badge-ioc" style="margin-top:3pt;">{{ threat.type.value | title }}</span>
+      </div>
+      <span class="badge badge-{{ threat.severity.value }}">{{ threat.severity.value | upper }}</span>
+    </div>
+
+    {% if threat.description %}
+    <div class="threat-desc">{{ threat.description }}</div>
+    {% endif %}
+
+    {% if threat.mitre_techniques %}
+    <div class="threat-techniques">
+      <span class="text-muted text-sm" style="margin-right:4pt;">MITRE ATT&amp;CK:</span>
+      {% for technique in threat.mitre_techniques %}
+        <span class="badge badge-technique">{{ technique }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+
+<!-- ══════════════════════════════════════════════════════════
+     4. NLP ANALYSIS RESULTS
+     ══════════════════════════════════════════════════════════ -->
+{% if nlp %}
+<div class="section">
+  <div class="section-title"><span class="section-title-icon"></span>AI / NLP Analysis</div>
+
+  {% if nlp.classification %}
+  <table class="detail-table mb-4">
+    <tr><td>SecBERT Classification</td><td><strong>{{ nlp.classification.label | title }}</strong> (confidence: {{ "%.0f" | format(nlp.classification.score * 100) }}%)</td></tr>
+    {% if nlp.ner_summary %}
+    <tr><td>NER Entities Found</td><td>{{ nlp.ner_summary }}</td></tr>
+    {% endif %}
+    {% if nlp.cluster_count is defined %}
+    <tr><td>Threat Clusters</td><td>{{ nlp.cluster_count }} cluster(s) identified by K-Means / DBSCAN</td></tr>
+    {% endif %}
+  </table>
+  {% endif %}
+</div>
+{% endif %}
+
+
+<!-- ══════════════════════════════════════════════════════════
+     5. INDICATORS OF COMPROMISE
+     ══════════════════════════════════════════════════════════ -->
+<div class="section section-break">
+  <div class="section-title"><span class="section-title-icon"></span>Indicators of Compromise</div>
+
+  {% if iocs %}
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th style="width:14mm;">Type</th>
+        <th>Value</th>
+        <th style="width:20mm;">Severity</th>
+        <th style="width:16mm;">TLP</th>
+        <th style="width:16mm;">Confidence</th>
+        <th style="width:22mm;">Source</th>
+        <th style="width:20mm;">First Seen</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for ioc in iocs %}
+      <tr>
+        <td><span class="badge badge-ioc">{{ ioc.type.value | upper }}</span></td>
+        <td class="col-value">{{ ioc.value_normalized }}</td>
+        <td><span class="badge badge-{{ ioc.severity.value }}">{{ ioc.severity.value | upper }}</span></td>
+        <td><span class="badge badge-tlp-{{ ioc.tlp.value }}">TLP:{{ ioc.tlp.value | upper }}</span></td>
+        <td class="col-confidence">
+          <span class="{% if ioc.confidence >= 70 %}conf-high{% elif ioc.confidence >= 40 %}conf-medium{% else %}conf-low{% endif %}">
+            {{ ioc.confidence }}%
+          </span>
+        </td>
+        <td class="text-muted text-sm">{{ ioc.source_type }}</td>
+        <td class="text-muted text-sm">{{ ioc.first_seen_at.strftime('%Y-%m-%d') if ioc.first_seen_at else '—' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="no-data">No indicators of compromise were extracted during this hunt.</div>
+  {% endif %}
+
+  <p class="text-muted text-sm">
+    Total: {{ iocs | length }} indicator(s) displayed.
+    {% if iocs | length > 0 %}
+    Critical: {{ iocs | selectattr('severity.value', 'equalto', 'critical') | list | length }} &nbsp;|&nbsp;
+    High: {{ iocs | selectattr('severity.value', 'equalto', 'high') | list | length }} &nbsp;|&nbsp;
+    Medium: {{ iocs | selectattr('severity.value', 'equalto', 'medium') | list | length }} &nbsp;|&nbsp;
+    Low: {{ iocs | selectattr('severity.value', 'equalto', 'low') | list | length }}
+    {% endif %}
+  </p>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════
+     6. ALERTS & CORRELATIONS
+     ══════════════════════════════════════════════════════════ -->
+<div class="section section-break">
+  <div class="section-title"><span class="section-title-icon"></span>Alerts &amp; Correlations</div>
+
+  {% if alerts %}
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Alert Title</th>
+        <th style="width:20mm;">Severity</th>
+        <th style="width:20mm;">Status</th>
+        <th style="width:24mm;">MITRE Technique</th>
+        <th style="width:22mm;">Asset</th>
+        <th style="width:20mm;">Detected</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for alert in alerts %}
+      <tr>
+        <td style="color:#e2e8f0;">{{ alert.title }}</td>
+        <td><span class="badge badge-{{ alert.severity.value }}">{{ alert.severity.value | upper }}</span></td>
+        <td>
+          <span class="badge {% if alert.status.value == 'open' %}badge-high{% elif alert.status.value == 'investigating' %}badge-medium{% elif alert.status.value == 'resolved' %}badge-low{% else %}badge-info{% endif %}">
+            {{ alert.status.value | replace('_', ' ') | upper }}
+          </span>
+        </td>
+        <td>
+          {% if alert.mitre_technique_id %}
+            <span class="badge badge-technique">{{ alert.mitre_technique_id }}</span>
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+        </td>
+        <td class="mono text-sm">
+          {% if alert.asset %}{{ alert.asset.hostname | default('Unknown') }}{% else %}—{% endif %}
+        </td>
+        <td class="text-muted text-sm">{{ alert.created_at.strftime('%Y-%m-%d %H:%M') if alert.created_at else '—' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="no-data">No correlation alerts were generated for this hunt.</div>
+  {% endif %}
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════
+     7. RECOMMENDATIONS
+     ══════════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title"><span class="section-title-icon"></span>Recommendations</div>
+  <ul class="rec-list">
+    {% for rec in recommendations %}
+    <li>
+      <div class="rec-priority rec-p{{ rec.priority }}">{{ rec.priority }}</div>
+      <div>
+        <strong style="color:#f1f5f9;">{{ rec.title }}</strong><br/>
+        <span class="text-muted">{{ rec.body }}</span>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════
+     FOOTER NOTE
+     ══════════════════════════════════════════════════════════ -->
+<div class="section" style="margin-top:8mm; border-top:1px solid #1e293b; padding-top:4mm;">
+  <p class="text-muted text-sm">
+    This report was automatically generated by the HUNTER Automated Threat Hunting Platform.
+    All IoCs and threat intelligence data have been collected from open-source and subscribed feeds,
+    processed through an AI/NLP pipeline, and correlated against the client environment.
+    Results should be reviewed by a qualified security analyst before taking remediation actions.
+  </p>
+  <p class="text-muted text-sm" style="margin-top:3pt;">
+    <strong style="color:#475569;">Classification:</strong> TLP:AMBER — Share only with members of your organisation and partners on a need-to-know basis.
+  </p>
+</div>
+
+</body>
+</html>
