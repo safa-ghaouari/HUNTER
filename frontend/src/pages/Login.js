@@ -1,14 +1,4 @@
 import React, { useEffect, useState } from "react";
-import {
-  Alert,
-  Box,
-  Button,
-  Container,
-  Paper,
-  Stack,
-  TextField,
-  Typography,
-} from "@mui/material";
 import { useNavigate } from "react-router-dom";
 
 import { useAuth } from "../contexts/AuthContext";
@@ -58,93 +48,73 @@ export default function Login() {
   }
 
   return (
-    <Container maxWidth="sm" sx={{ minHeight: "100vh", display: "grid", placeItems: "center" }}>
-      <Paper
-        elevation={12}
-        sx={{
-          width: "100%",
-          p: 5,
-          borderRadius: 4,
-          backgroundColor: "rgba(15, 23, 42, 0.92)",
-          border: "1px solid rgba(148, 163, 184, 0.18)",
-          backdropFilter: "blur(12px)",
-          color: "#e2e8f0",
-        }}
-      >
-        <Stack spacing={3}>
-          <Box>
-            <Typography variant="overline" sx={{ letterSpacing: 2, color: "#38bdf8" }}>
-              HUNTER
-            </Typography>
-            <Typography variant="h4" fontWeight={700}>
-              Sign in to the SOC portal
-            </Typography>
-            <Typography variant="body2" sx={{ color: "rgba(226, 232, 240, 0.78)" }}>
-              Access Phase 1 infrastructure, RBAC, and platform health workflows.
-            </Typography>
-          </Box>
+    <div className="login-screen">
+      <div className="login-screen__hero">
+        <div className="login-screen__halo" />
+        <div className="login-screen__content">
+          <div className="login-screen__brand-mark">H</div>
+          <div className="portal-eyebrow">Threat Intelligence Operations</div>
+          <h1>HUNTER</h1>
+          <p>
+            Multi-tenant SOC workspace for collection, hunting, correlation, alerting, and client reporting.
+          </p>
 
-          {error ? <Alert severity="error">{error}</Alert> : null}
+          <div className="login-screen__stats">
+            <div>
+              <strong>24/7</strong>
+              <span>Coverage</span>
+            </div>
+            <div>
+              <strong>RBAC</strong>
+              <span>Scoped Access</span>
+            </div>
+            <div>
+              <strong>Live</strong>
+              <span>Ops Portal</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
-          <Box component="form" onSubmit={handleSubmit}>
-            <Stack spacing={2.5}>
-              <TextField
-                label="Email"
+      <div className="login-screen__panel">
+        <div className="login-card">
+          <div className="portal-eyebrow">Secure Access</div>
+          <h2>Sign in</h2>
+          <p className="login-card__subtitle">
+            Use your real HUNTER account. This login now keeps the project’s backend authentication flow instead of the prototype’s mock credentials.
+          </p>
+
+          {error ? <div className="login-error">{error}</div> : null}
+
+          <form className="login-form" onSubmit={handleSubmit}>
+            <label>
+              <span>Email address</span>
+              <input
                 type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                required
-                fullWidth
-                InputLabelProps={{ shrink: true }}
                 autoComplete="email"
-                sx={{
-                  "& .MuiInputBase-input": { color: "#e2e8f0" },
-                  "& .MuiInputLabel-root": { color: "rgba(226, 232, 240, 0.72)" },
-                  "& .MuiOutlinedInput-root fieldset": {
-                    borderColor: "rgba(148, 163, 184, 0.28)",
-                  },
-                  "& .MuiOutlinedInput-root:hover fieldset": {
-                    borderColor: "#38bdf8",
-                  },
-                }}
+                required
               />
-              <TextField
-                label="Password"
+            </label>
+
+            <label>
+              <span>Password</span>
+              <input
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                required
-                fullWidth
-                InputLabelProps={{ shrink: true }}
                 autoComplete="current-password"
-                sx={{
-                  "& .MuiInputBase-input": { color: "#e2e8f0" },
-                  "& .MuiInputLabel-root": { color: "rgba(226, 232, 240, 0.72)" },
-                  "& .MuiOutlinedInput-root fieldset": {
-                    borderColor: "rgba(148, 163, 184, 0.28)",
-                  },
-                  "& .MuiOutlinedInput-root:hover fieldset": {
-                    borderColor: "#38bdf8",
-                  },
-                }}
+                required
               />
-              <Button
-                type="submit"
-                variant="contained"
-                size="large"
-                disabled={isSubmitting}
-                sx={{
-                  py: 1.5,
-                  fontWeight: 700,
-                  background: "linear-gradient(90deg, #0ea5e9, #0284c7)",
-                }}
-              >
-                {isSubmitting ? "Signing in..." : "Sign in"}
-              </Button>
-            </Stack>
-          </Box>
-        </Stack>
-      </Paper>
-    </Container>
+            </label>
+
+            <button className="portal-button portal-button--primary login-submit" type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "Signing in…" : "Sign in"}
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -7,7 +7,7 @@ required by Phase 2 of the spec:
   - SANS Internet Storm Center (ISC) RSS
   - BleepingComputer RSS
   - The Hacker News RSS
-  - Abuse.ch URLhaus feed (JSON)
+  - Abuse.ch URLhaus feed (authenticated CSV dataset)
   - CIRCL MISP feed (JSON)
   - AlienVault OTX pulse feed (RSS — public, no key needed for basic access)
 
@@ -77,14 +77,15 @@ _DEFAULT_SOURCES: list[dict] = [
         "description": "The Hacker News — CVE disclosures, APT activity, breach analysis",
     },
     # -----------------------------------------------------------------------
-    # Abuse.ch (JSON feed — MISP-compatible, no auth required)
+    # Abuse.ch URLhaus authenticated dataset download
     # -----------------------------------------------------------------------
     {
         "name": "Abuse.ch URLhaus",
         "type": SourceType.ABUSE_CH,
-        "url": "https://urlhaus-api.abuse.ch/v1/urls/recent/",
+        "url": "https://urlhaus-api.abuse.ch/v2/files/exports/{auth_key}/recent.csv",
         "polling_interval_minutes": 120,
         "description": "Abuse.ch URLhaus — live malware distribution URLs",
+        "api_key_env": "ABUSE_CH_AUTH_KEY",
     },
     # -----------------------------------------------------------------------
     # CIRCL MISP feed (public, no auth required)

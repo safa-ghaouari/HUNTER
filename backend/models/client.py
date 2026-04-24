@@ -45,3 +45,6 @@ class Client(Base):
     reports: Mapped[list["Report"]] = relationship(  # noqa: F821
         "Report", back_populates="client", lazy="noload"
     )
+    sources: Mapped[list["Source"]] = relationship(  # noqa: F821
+        "Source", back_populates="client", lazy="noload"
+    )

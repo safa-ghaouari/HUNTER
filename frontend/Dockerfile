@@ -14,16 +14,13 @@ COPY src ./src
 
 RUN npm run build
 
-FROM node:20-alpine
-
-WORKDIR /app
-ENV NODE_ENV=production
+FROM nginx:1.27-alpine
 
 RUN apk upgrade --no-cache
-RUN npm install -g serve@14.2.3
 
-COPY --from=build /app/build ./build
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/build /usr/share/nginx/html
 
 EXPOSE 3000
 
-CMD ["serve", "-s", "build", "-l", "3000"]
+CMD ["nginx", "-g", "daemon off;"]

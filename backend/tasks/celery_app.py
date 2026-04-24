@@ -12,6 +12,7 @@ celery_app = Celery(
         "backend.tasks.scheduler",
         "backend.tasks.nlp_pipeline",
         "backend.tasks.backup",
+        "backend.tasks.sigma_scan",
     ],
 )
 
@@ -31,6 +32,10 @@ celery_app.conf.update(
         "daily-postgres-backup": {
             "task": "backend.tasks.run_backup",
             "schedule": crontab(hour=2, minute=0),
+        },
+        "sigma-rule-scan": {
+            "task": "backend.tasks.run_sigma_scan",
+            "schedule": crontab(minute="*/15"),
         },
     },
 )

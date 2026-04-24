@@ -1,6 +1,8 @@
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +12,10 @@ from backend.models.alert import Alert
 from backend.models.enums import AlertStatus, Severity
 from backend.models.user import User
 from backend.schemas.alert import AlertResponse
+
+
+class AlertStatusUpdateRequest(BaseModel):
+    status: AlertStatus
 
 router = APIRouter(tags=["alerts"])
 
@@ -63,6 +69,23 @@ async def get_admin_alert(
     session: AsyncSession = Depends(get_db_session),
 ) -> AlertResponse:
     alert = await _get_alert_or_404(alert_id, session)
+    return AlertResponse.model_validate(alert)
+
+
+@router.patch("/admin/alerts/{alert_id}", response_model=AlertResponse, status_code=status.HTTP_200_OK)
+async def update_admin_alert_status(
+    alert_id: UUID,
+    payload: AlertStatusUpdateRequest,
+    current_user: User = Depends(get_current_user_with_rbac("admin_soc")),
+    session: AsyncSession = Depends(get_db_session),
+) -> AlertResponse:
+    alert = await _get_alert_or_404(alert_id, session)
+    alert.status = payload.status
+    if payload.status in (AlertStatus.RESOLVED, AlertStatus.FALSE_POSITIVE):
+        alert.validated_by = current_user.id
+        alert.validated_at = datetime.now(timezone.utc)
+    await session.commit()
+    await session.refresh(alert)
     return AlertResponse.model_validate(alert)
 
 

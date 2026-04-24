@@ -41,10 +41,18 @@ fi
 # ── 5. Login with the generated root token ────────────────────────────────
 export VAULT_TOKEN=$(jq -r '.root_token' "$INIT_FILE")
 
-# ── 6. Enable KV v2 (idempotent) ──────────────────────────────────────────
-vault secrets enable -path=secret kv-v2 2>/dev/null \
-    && echo "[vault] KV v2 enabled." \
-    || echo "[vault] KV v2 already enabled."
+# ── 6. Enable KV v2 mounts (idempotent) ───────────────────────────────────
+if vault secrets enable -path=secret kv-v2 >/dev/null 2>&1; then
+    echo "[vault] KV v2 (secret) enabled."
+else
+    echo "[vault] KV v2 (secret) already enabled."
+fi
+
+if vault secrets enable -path=hunter kv-v2 >/dev/null 2>&1; then
+    echo "[vault] KV v2 (hunter) enabled."
+else
+    echo "[vault] KV v2 (hunter) already enabled."
+fi
 
 # ── 7. Ensure our fixed service token exists ──────────────────────────────
 if vault token lookup "$CUSTOM_TOKEN" > /dev/null 2>&1; then
@@ -62,7 +70,11 @@ fi
 
 # ── 8. Populate secrets from environment (idempotent) ─────────────────────
 echo "[vault] Writing secrets..."
-_put() { vault kv put "secret/$1" "$2" > /dev/null 2>&1 && echo "[vault]   $1 OK" || true; }
+_put() {
+    if vault kv put "secret/$1" "$2" > /dev/null 2>&1; then
+        echo "[vault]   $1 OK"
+    fi
+}
 
 [ -n "$OTX_API_KEY" ]        && _put "sources/4dc8cfff-9309-4fdf-833c-afafc8b9291f" "api_key=$OTX_API_KEY"
 [ -n "$VIRUSTOTAL_API_KEY" ] && _put "enrichment/virustotal"  "api_key=$VIRUSTOTAL_API_KEY"

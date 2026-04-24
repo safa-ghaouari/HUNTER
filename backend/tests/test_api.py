@@ -7,10 +7,13 @@ mocked Celery and MinIO).
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 from httpx import AsyncClient
 
 from backend.models.enums import IocType, Severity, TlpLevel
+from backend.models.client import Client
 from backend.models.ioc import IoC
 
 pytestmark = pytest.mark.asyncio
@@ -125,6 +128,43 @@ class TestSources:
         assert resp.json()["url"] == "https://example.com/new"
         assert resp.json()["is_active"] is False
 
+    async def test_create_abuse_ch_source_requires_auth_key(self, client: AsyncClient, auth_headers):
+        resp = await client.post("/admin/sources", headers=auth_headers, json={
+            "name": "Abuse.ch URLhaus",
+            "type": "abuse_ch",
+            "url": "https://urlhaus-api.abuse.ch/v2/files/exports/{auth_key}/recent.csv",
+            "polling_interval_minutes": 120,
+            "is_active": True,
+        })
+        assert resp.status_code == 400
+        assert "Auth-Key" in resp.json()["detail"]
+
+    async def test_create_secureworks_source_requires_client_scope(self, client: AsyncClient, auth_headers):
+        resp = await client.post("/admin/sources", headers=auth_headers, json={
+            "name": "Secureworks Taegis",
+            "type": "secureworks",
+            "polling_interval_minutes": 60,
+            "is_active": True,
+        })
+        assert resp.status_code == 400
+        assert "scoped to a client" in resp.json()["detail"]
+
+    async def test_create_secureworks_source_with_client_scope(self, client: AsyncClient, auth_headers, db_session):
+        target_client = Client(name="Scoped Client", api_key_vault_path="secret/clients/scoped")
+        db_session.add(target_client)
+        await db_session.commit()
+        await db_session.refresh(target_client)
+
+        resp = await client.post("/admin/sources", headers=auth_headers, json={
+            "name": "Secureworks Taegis",
+            "type": "secureworks",
+            "client_id": str(target_client.id),
+            "polling_interval_minutes": 60,
+            "is_active": True,
+        })
+        assert resp.status_code == 201
+        assert resp.json()["client_id"] == str(target_client.id)
+
 
 # ---------------------------------------------------------------------------
 # Hunting jobs
@@ -181,6 +221,36 @@ class TestHuntingJobs:
         assert resp.status_code == 200
         jobs = resp.json()
         assert all(j["status"] == "pending" for j in jobs)
+
+
+# ---------------------------------------------------------------------------
+# Clients
+# ---------------------------------------------------------------------------
+
+class TestClients:
+    async def test_openvas_connection_probe(self, client: AsyncClient, auth_headers, db_session):
+        target_client = Client(
+            name="OpenVAS Client",
+            api_key_vault_path="secret/clients/openvas",
+            connection_type="openvas",
+            openvas_url="openvas.example.test:9390",
+        )
+        db_session.add(target_client)
+        await db_session.commit()
+        await db_session.refresh(target_client)
+
+        with patch(
+            "backend.integrations.openvas_client.pull_scan_results_for_client",
+            return_value=[{"host": "10.0.0.5", "cvss_score": 9.8}],
+        ):
+            resp = await client.post(
+                f"/admin/clients/{target_client.id}/test-connection",
+                headers=auth_headers,
+            )
+
+        assert resp.status_code == 200
+        assert resp.json()["connection_type"] == "openvas"
+        assert resp.json()["findings_count"] == 1
 
 
 # ---------------------------------------------------------------------------

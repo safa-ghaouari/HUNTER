@@ -38,7 +38,8 @@ RUN pip install --no-cache-dir \
     "elasticsearch==8.13.0" \
     "celery[redis]==5.4.0" \
     "requests==2.32.3" \
-    "websockets==12.0"
+    "websockets==12.0" \
+    "python-gvm==27.0.1"
 
 # ── Layer 3: Data collection / scraping ──────────────────────────────────────
 RUN pip install --no-cache-dir \
@@ -70,7 +71,12 @@ RUN pip install --no-cache-dir "langchain-community==0.2.6"
 # ── Layer 7: Report generation ────────────────────────────────────────────────
 RUN pip install --no-cache-dir "weasyprint==60.2" "pydyf==0.8.0" "jinja2==3.1.4"
 
-# ── Layer 8: Test dependencies ────────────────────────────────────────────────
+# ── Layer 8: Sigma rule engine ────────────────────────────────────────────────
+RUN pip install --no-cache-dir \
+    "pySigma==0.11.17" \
+    "pySigma-backend-elasticsearch==1.1.2"
+
+# ── Layer 9: Test dependencies ────────────────────────────────────────────────
 RUN pip install --no-cache-dir \
     "pytest==8.2.2" \
     "pytest-asyncio==0.23.7" \
@@ -83,6 +89,7 @@ RUN pip install --no-cache-dir \
 
 COPY backend ./backend
 COPY scripts ./scripts
+COPY sigma_rules ./sigma_rules
 
 EXPOSE 8000
 

@@ -4,7 +4,7 @@ import csv
 import io
 import json
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 import feedparser
 import requests
@@ -16,6 +16,12 @@ from backend.models.source import Source
 
 _COLLECTION_ITEM_LIMIT = 20
 _ARTICLE_TEXT_LIMIT = 12000
+DEFAULT_ABUSE_CH_DATASET_URL = "https://urlhaus-api.abuse.ch/v2/files/exports/{auth_key}/recent.csv"
+_ABUSE_CH_AUTH_KEY_PLACEHOLDER = "{auth_key}"
+_ABUSE_CH_LEGACY_RECENT_URLS = {
+    "https://urlhaus-api.abuse.ch/v1/urls/recent",
+    "https://urlhaus-api.abuse.ch/v1/urls/recent/",
+}
 
 # newspaper4k (the maintained Newspaper3k successor) is used for full article
 # extraction.  It is optional at import time so the collector degrades
@@ -43,6 +49,8 @@ def _source_headers(source: Source) -> dict[str, str]:
 
     if source.type == SourceType.OTX:
         headers["X-OTX-API-KEY"] = api_key
+    elif source.type == SourceType.ABUSE_CH:
+        return headers
     else:
         headers["Authorization"] = api_key
     return headers
@@ -200,10 +208,57 @@ def _collect_generic_intel_entries(source: Source) -> tuple[list[dict[str, str]]
 _URLHAUS_CSV_COLUMNS = ("id", "date_added", "url", "url_status", "last_online", "threat", "tags", "urlhaus_link", "reporter")
 
 
+def _build_abuse_ch_dataset_url(url_template: str, auth_key: str) -> str:
+    template = (url_template or "").strip() or DEFAULT_ABUSE_CH_DATASET_URL
+    if template.rstrip("/") in {item.rstrip("/") for item in _ABUSE_CH_LEGACY_RECENT_URLS}:
+        template = DEFAULT_ABUSE_CH_DATASET_URL
+
+    if _ABUSE_CH_AUTH_KEY_PLACEHOLDER in template:
+        return template.replace(_ABUSE_CH_AUTH_KEY_PLACEHOLDER, auth_key)
+
+    parsed = urlparse(template)
+    path_parts = [part for part in parsed.path.split("/") if part]
+    if path_parts[:3] != ["v2", "files", "exports"]:
+        raise ValueError(
+            "Abuse.ch URLhaus sources must use the v2 dataset download endpoint "
+            "or include the '{auth_key}' placeholder in the URL."
+        )
+
+    dataset_parts = path_parts[3:] if len(path_parts) == 4 else path_parts[4:]
+    if not dataset_parts:
+        raise ValueError("Abuse.ch URLhaus dataset URL is missing the export filename.")
+
+    updated_path = "/" + "/".join(["v2", "files", "exports", auth_key, *dataset_parts])
+    return urlunparse(parsed._replace(path=updated_path))
+
+
+def _resolve_abuse_ch_dataset_url(source: Source) -> str:
+    if not source.api_key_vault_path:
+        raise ValueError(
+            "Abuse.ch URLhaus collection requires an Auth-Key stored in Vault. "
+            "Update the source with an API key before enabling it."
+        )
+
+    try:
+        secret = read_secret(source.api_key_vault_path)
+    except Exception as exc:
+        raise ValueError(
+            f"Abuse.ch URLhaus Auth-Key could not be read from Vault path '{source.api_key_vault_path}'."
+        ) from exc
+
+    auth_key = str(secret.get("api_key") or secret.get("auth_key") or "").strip()
+    if not auth_key:
+        raise ValueError(
+            "Abuse.ch URLhaus collection requires an Auth-Key in Vault under 'api_key' or 'auth_key'."
+        )
+
+    return _build_abuse_ch_dataset_url(source.url or DEFAULT_ABUSE_CH_DATASET_URL, auth_key)
+
+
 def _collect_abuse_ch_csv_entries(source: Source) -> tuple[list[dict[str, str]], list[str]]:
-    """Parse the Abuse.ch URLhaus public CSV dump (no auth required)."""
+    """Parse the Abuse.ch URLhaus authenticated CSV dataset download."""
     headers = _source_headers(source)
-    payload_text = _read_text_from_url(source.url or "", headers)
+    payload_text = _read_text_from_url(_resolve_abuse_ch_dataset_url(source), headers)
 
     data_lines = [line for line in payload_text.splitlines() if line and not line.startswith("#")]
     if not data_lines:

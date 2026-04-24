@@ -137,3 +137,22 @@ async def get_hunting_job(
 ) -> HuntingJobResponse:
     job = await _get_hunting_job_or_404(job_id, session)
     return HuntingJobResponse.model_validate(job)
+
+
+@router.patch("/{job_id}", response_model=HuntingJobResponse, status_code=status.HTTP_200_OK)
+async def cancel_hunting_job(
+    job_id: UUID,
+    _: User = Depends(get_current_user_with_rbac("admin_soc")),
+    session: AsyncSession = Depends(get_db_session),
+) -> HuntingJobResponse:
+    job = await _get_hunting_job_or_404(job_id, session)
+    if job.status not in (JobStatus.PENDING, JobStatus.RUNNING):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot cancel a job with status '{job.status.value}'.",
+        )
+    job.status = JobStatus.CANCELLED
+    job.finished_at = datetime.now(timezone.utc)
+    await session.commit()
+    await session.refresh(job)
+    return HuntingJobResponse.model_validate(job)

@@ -1,0 +1,31 @@
+title: Scheduled Task Created via Windows Security Event
+id: e6c5d4f3-a7b8-9012-cdef-012345678902
+status: stable
+description: >
+  Detects the creation of a new scheduled task (EventID 4698). Threat actors
+  commonly create scheduled tasks for persistence, lateral movement, or delayed
+  payload execution. Filter on task name patterns to reduce false positives.
+references:
+  - https://attack.mitre.org/techniques/T1053/005/
+author: HUNTER SOC
+date: 2026-04-22
+tags:
+  - attack.persistence
+  - attack.privilege_escalation
+  - attack.t1053.005
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    winlog.event_id: '4698'
+  filter_known_good:
+    winlog.event_data.TaskName|startswith:
+      - '\Microsoft\'
+      - '\Adobe\'
+      - '\Mozilla\'
+  condition: selection and not filter_known_good
+falsepositives:
+  - Legitimate software installers creating scheduled update tasks
+  - Administrator maintenance tasks
+level: medium

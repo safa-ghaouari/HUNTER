@@ -15,7 +15,7 @@ the Vault path is persisted here.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum as SqlEnum, Integer, String, Text, func, text
+from sqlalchemy import Boolean, DateTime, Enum as SqlEnum, ForeignKey, Integer, String, Text, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import Uuid
 
@@ -53,6 +53,13 @@ class Source(Base):
         String(255), nullable=True,
         comment="HashiCorp Vault path where the API key is stored (e.g. secret/sources/otx)",
     )
+    client_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("clients.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+        comment="Owning client for client-specific sources such as Secureworks collectors",
+    )
 
     # ------------------------------------------------------------------
     # Polling configuration
@@ -69,6 +76,22 @@ class Source(Base):
         DateTime(timezone=True), nullable=True,
         comment="Timestamp of the most recent successful poll — null if never polled",
     )
+    last_attempted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+        comment="Timestamp of the most recent collection attempt (success or failure)",
+    )
+    last_failed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+        comment="Timestamp of the most recent failed collection attempt",
+    )
+    consecutive_failures: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0"),
+        comment="How many collection attempts have failed in a row",
+    )
+    last_error_message: Mapped[str | None] = mapped_column(
+        Text, nullable=True,
+        comment="Last collection error recorded for the source",
+    )
 
     # ------------------------------------------------------------------
     # Audit
@@ -84,4 +107,7 @@ class Source(Base):
     # collection job scheduled for this feed).
     hunting_jobs: Mapped[list["HuntingJob"]] = relationship(  # noqa: F821
         "HuntingJob", back_populates="source", lazy="noload"
+    )
+    client: Mapped["Client | None"] = relationship(  # noqa: F821
+        "Client", back_populates="sources", lazy="joined"
     )

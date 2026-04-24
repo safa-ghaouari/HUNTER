@@ -1,0 +1,34 @@
+title: Mimikatz-Specific Strings Observed in Logs
+id: c0a9b8d7-e1f2-3456-0123-456789012346
+status: stable
+description: >
+  Detects well-known Mimikatz module names and strings that appear in logs when
+  the tool is executed. These strings should never appear in legitimate log output
+  and therefore carry a near-zero false positive rate.
+references:
+  - https://attack.mitre.org/techniques/T1003/001/
+  - https://github.com/gentilkiwi/mimikatz
+author: HUNTER SOC
+date: 2026-04-22
+tags:
+  - attack.credential_access
+  - attack.t1003
+logsource:
+  category: generic
+detection:
+  selection:
+    message|contains:
+      - 'sekurlsa::logonpasswords'
+      - 'sekurlsa::pth'
+      - 'lsadump::sam'
+      - 'lsadump::dcsync'
+      - 'kerberos::golden'
+      - 'kerberos::ptt'
+      - 'privilege::debug'
+      - 'mimikatz'
+      - 'mimilib'
+  condition: selection
+falsepositives:
+  - Security research documentation or test environments
+  - SIEM/EDR alert forwarding (rule may fire on its own alert text)
+level: critical

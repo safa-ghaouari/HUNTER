@@ -25,6 +25,7 @@ elasticsearch==8.13.0
 celery[redis]==5.4.0
 requests==2.32.3
 websockets==12.0
+python-gvm==27.0.1
 
 # Data collection / scraping
 feedparser==6.0.11
@@ -40,3 +41,7 @@ spacy==3.7.4
 transformers==4.40.1
 langchain==0.2.6
 langchain-community==0.2.6
+
+# Phase 4 — Sigma rule engine
+pySigma==0.11.17
+pySigma-backend-elasticsearch==1.1.2

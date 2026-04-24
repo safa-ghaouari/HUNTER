@@ -18,6 +18,49 @@ from backend.services.ioc_extraction import extract_iocs
 from backend.services.source_collection import collect_source_entries
 from backend.tasks.nlp_pipeline import run_nlp_for_job
 
+_SOURCE_AUTO_DISABLE_FAILURE_THRESHOLD = 5
+_SOURCE_ERROR_MESSAGE_LIMIT = 1000
+
+
+def _truncate_source_error(message: str) -> str:
+    message = message.strip()
+    if len(message) <= _SOURCE_ERROR_MESSAGE_LIMIT:
+        return message
+    return f"{message[:_SOURCE_ERROR_MESSAGE_LIMIT - 3]}..."
+
+
+def _record_source_success(source: Source, completed_at: datetime) -> None:
+    source.last_attempted_at = completed_at
+    source.last_polled_at = completed_at
+    source.last_failed_at = None
+    source.consecutive_failures = 0
+    source.last_error_message = None
+
+
+def _record_source_failure(source: Source, *, error: Exception, failed_at: datetime) -> str:
+    source.last_attempted_at = failed_at
+    source.last_failed_at = failed_at
+    source.consecutive_failures = (source.consecutive_failures or 0) + 1
+
+    error_message = _truncate_source_error(str(error) or error.__class__.__name__)
+    source.last_error_message = error_message
+
+    if source.consecutive_failures >= _SOURCE_AUTO_DISABLE_FAILURE_THRESHOLD:
+        source.is_active = False
+        source.last_error_message = (
+            f"Auto-disabled after {source.consecutive_failures} consecutive collection failures. "
+            f"Last error: {error_message}"
+        )
+        return (
+            f"source '{source.name}' auto-disabled after "
+            f"{source.consecutive_failures} consecutive failures: {error_message}"
+        )
+
+    return (
+        f"source '{source.name}' failed "
+        f"({source.consecutive_failures} consecutive failure(s)): {error_message}"
+    )
+
 
 async def _resolve_entries(job: HuntingJob, session) -> tuple[list[dict[str, str]], list[str]]:
     entries: list[dict[str, str]] = []
@@ -40,6 +83,12 @@ async def _resolve_entries(job: HuntingJob, session) -> tuple[list[dict[str, str
         statement = statement.where(Source.id == job.source_id)
     sources = (await session.execute(statement.order_by(Source.created_at.desc()))).scalars().all()
 
+    attempt_started_at = datetime.now(timezone.utc)
+    for source in sources:
+        source.last_attempted_at = attempt_started_at
+    if sources:
+        await session.commit()
+
     async def _fetch_source(source):
         try:
             source_entries, source_notes = await asyncio.to_thread(collect_source_entries, source)
@@ -50,16 +99,21 @@ async def _resolve_entries(job: HuntingJob, session) -> tuple[list[dict[str, str
     results = await asyncio.gather(*[_fetch_source(s) for s in sources])
 
     for source, source_entries, source_notes, error in results:
+        completed_at = datetime.now(timezone.utc)
         if error:
-            notes.append(f"source '{source.name}' failed: {error}")
+            notes.append(_record_source_failure(source, error=error, failed_at=completed_at))
             continue
         notes.extend(source_notes)
         if not source_entries:
             notes.append(f"source '{source.name}' returned no entries")
+            _record_source_success(source, completed_at)
             continue
-        source.last_polled_at = datetime.now(timezone.utc)
+        _record_source_success(source, completed_at)
         entries.extend(source_entries)
         notes.append(f"source '{source.name}' returned {len(source_entries)} entries")
+
+    if sources:
+        await session.commit()
 
     return entries, notes
 

@@ -103,6 +103,7 @@ def optional_sources(env: dict[str, str]) -> list[dict[str, object]]:
         )
 
     abuse_ch_url = env.get("ABUSE_CH_URL")
+    abuse_ch_auth_key = env.get("ABUSE_CH_AUTH_KEY")
     if abuse_ch_url:
         sources.append(
             {
@@ -111,6 +112,7 @@ def optional_sources(env: dict[str, str]) -> list[dict[str, object]]:
                 "url": abuse_ch_url,
                 "polling_interval_minutes": 120,
                 "is_active": True,
+                "api_key": abuse_ch_auth_key,
             }
         )
 

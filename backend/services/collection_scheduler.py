@@ -10,6 +10,25 @@ from backend.models.hunting_job import HuntingJob
 from backend.models.source import Source
 from backend.models.user import User, UserRole
 
+_MAX_FAILURE_BACKOFF_MULTIPLIER = 16
+
+
+def _source_due_at(source: Source) -> datetime | None:
+    reference_time = source.last_attempted_at or source.last_polled_at
+    if reference_time is None:
+        return None
+
+    failure_multiplier = 1
+    if source.consecutive_failures > 1:
+        failure_multiplier = min(
+            2 ** (source.consecutive_failures - 1),
+            _MAX_FAILURE_BACKOFF_MULTIPLIER,
+        )
+
+    return reference_time + timedelta(
+        minutes=source.polling_interval_minutes * failure_multiplier
+    )
+
 
 async def dispatch_due_collection_jobs() -> dict[str, object]:
     from backend.tasks.collection import run_hunting_job_task
@@ -43,9 +62,8 @@ async def dispatch_due_collection_jobs() -> dict[str, object]:
         notes: list[str] = []
 
         for source in sources:
-            due_at = None
-            if source.last_polled_at is not None:
-                due_at = source.last_polled_at + timedelta(minutes=source.polling_interval_minutes)
+            due_at = _source_due_at(source)
+            if due_at is not None:
                 if due_at > now:
                     continue
 
@@ -64,6 +82,7 @@ async def dispatch_due_collection_jobs() -> dict[str, object]:
                 notes.append(f"source '{source.name}' already has an active collection job")
                 continue
 
+            source.last_attempted_at = now
             job = HuntingJob(
                 type=JobType.COLLECTION,
                 status=JobStatus.PENDING,

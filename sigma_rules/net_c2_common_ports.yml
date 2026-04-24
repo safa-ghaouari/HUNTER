@@ -1,0 +1,41 @@
+title: Outbound Connection to Common C2 Ports
+id: d1b0c9e8-f2a3-4567-1234-567890123457
+status: stable
+description: >
+  Detects log messages referencing outbound connections to ports commonly used by
+  C2 frameworks (Metasploit default 4444, Cobalt Strike 50050, Empire 1337, etc.).
+  Most legitimate traffic uses registered ports; these stand out in firewall/proxy logs.
+references:
+  - https://attack.mitre.org/techniques/T1071/001/
+  - https://attack.mitre.org/techniques/T1571/
+author: HUNTER SOC
+date: 2026-04-22
+tags:
+  - attack.command_and_control
+  - attack.t1071.001
+  - attack.t1571
+logsource:
+  category: firewall
+detection:
+  selection:
+    message|contains:
+      - 'DSTPORT=4444'
+      - 'DSTPORT=1337'
+      - 'DSTPORT=6666'
+      - 'DSTPORT=8888'
+      - 'DSTPORT=50050'
+      - 'dst_port=4444'
+      - 'dst_port=1337'
+      - 'dst_port=6666'
+      - 'dst_port=8888'
+      - 'dst_port=50050'
+      - ':4444 '
+      - ':1337 '
+      - ':6666 '
+      - ':8888 '
+      - ':50050 '
+  condition: selection
+falsepositives:
+  - Development environments running local servers on non-standard ports
+  - Docker port mappings that happen to use these port numbers
+level: medium

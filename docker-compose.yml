@@ -81,6 +81,37 @@ services:
     networks:
       - hunter_net
 
+  logstash:
+    image: logstash:8.13.0
+    container_name: hunter-logstash
+    restart: unless-stopped
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      LOGSTASH_HTTP_USER: ${LOGSTASH_HTTP_USER:-logstash}
+      LOGSTASH_HTTP_PASSWORD: ${LOGSTASH_HTTP_PASSWORD:-logstashpass}
+      LS_JAVA_OPTS: -Xms256m -Xmx256m
+    volumes:
+      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+      - ./logstash/config/pipelines.yml:/usr/share/logstash/config/pipelines.yml:ro
+      - ./logstash/pipelines:/usr/share/logstash/pipeline:ro
+      - logstash_data:/usr/share/logstash/data
+    ports:
+      - "5044:5044"       # Beats (Filebeat / Winlogbeat / Auditbeat)
+      - "5514:5514/udp"   # Syslog UDP
+      - "5514:5514/tcp"   # Syslog TCP
+      - "8088:8088"       # HTTP JSON push (protected by basic auth)
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9600/_node/stats >/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    networks:
+      - hunter_net
+
   rabbitmq:
     image: rabbitmq:3.13-management
     container_name: hunter-rabbitmq
@@ -325,7 +356,7 @@ services:
     volumes:
       - ollama_data:/root/.ollama
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags >/dev/null"]
+      test: ["CMD", "ollama", "list"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -485,3 +516,4 @@ volumes:
   grafana_data:
   vault_data:
   ollama_data:
+  logstash_data:
