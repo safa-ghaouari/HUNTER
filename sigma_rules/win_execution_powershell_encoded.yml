@@ -1,0 +1,37 @@
+title: PowerShell Encoded Command Execution
+id: d5b4c3e2-f6a7-8901-bcde-f01234567891
+status: stable
+description: >
+  Detects PowerShell launched with -EncodedCommand (or its common short forms) which
+  is universally used to hide malicious payloads from casual log inspection.
+  Covers Cobalt Strike, Empire, Metasploit, and commodity loaders.
+references:
+  - https://attack.mitre.org/techniques/T1059/001/
+  - https://lolbas-project.github.io/lolbas/Binaries/Powershell/
+author: HUNTER SOC
+date: 2026-04-22
+tags:
+  - attack.execution
+  - attack.defense_evasion
+  - attack.t1059.001
+  - attack.t1027
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection_image:
+    process.executable|endswith:
+      - '\powershell.exe'
+      - '\pwsh.exe'
+  selection_cmd:
+    process.command_line|contains:
+      - ' -EncodedCommand '
+      - ' -encodedcommand '
+      - ' -enc '
+      - ' -EC '
+      - ' -en '
+  condition: selection_image and selection_cmd
+falsepositives:
+  - Legitimate automation scripts using Base64-encoded commands
+  - SCCM / Intune management payloads
+level: high

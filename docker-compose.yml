@@ -1,0 +1,519 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: hunter-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - hunter_net
+
+  redis:
+    image: redis:7
+    container_name: hunter-redis
+    restart: unless-stopped
+    command: redis-server --requirepass redispassword
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redispassword", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      - hunter_net
+
+  elasticsearch:
+    image: elasticsearch:8.13.0
+    container_name: hunter-elasticsearch
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:9200/_cluster/health | grep -q '\"status\"'",
+        ]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - hunter_net
+
+  kibana:
+    image: kibana:8.13.0
+    container_name: hunter-kibana
+    restart: unless-stopped
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    ports:
+      - "5601:5601"
+    networks:
+      - hunter_net
+
+  logstash:
+    image: logstash:8.13.0
+    container_name: hunter-logstash
+    restart: unless-stopped
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      LOGSTASH_HTTP_USER: ${LOGSTASH_HTTP_USER:-logstash}
+      LOGSTASH_HTTP_PASSWORD: ${LOGSTASH_HTTP_PASSWORD:-logstashpass}
+      LS_JAVA_OPTS: -Xms256m -Xmx256m
+    volumes:
+      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+      - ./logstash/config/pipelines.yml:/usr/share/logstash/config/pipelines.yml:ro
+      - ./logstash/pipelines:/usr/share/logstash/pipeline:ro
+      - logstash_data:/usr/share/logstash/data
+    ports:
+      - "5044:5044"       # Beats (Filebeat / Winlogbeat / Auditbeat)
+      - "5514:5514/udp"   # Syslog UDP
+      - "5514:5514/tcp"   # Syslog TCP
+      - "8088:8088"       # HTTP JSON push (protected by basic auth)
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9600/_node/stats >/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    networks:
+      - hunter_net
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: hunter-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASSWORD}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - hunter_net
+
+  misp_db:
+    image: mariadb:11
+    container_name: hunter-misp-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MISP_DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MISP_DB_NAME}
+      MYSQL_USER: ${MISP_DB_USER}
+      MYSQL_PASSWORD: ${MISP_DB_PASSWORD}
+    volumes:
+      - misp_db_data:/var/lib/mysql
+    networks:
+      - hunter_net
+
+  misp:
+    image: ghcr.io/misp/misp-docker/misp-core:latest
+    container_name: hunter-misp
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      misp_db:
+        condition: service_started
+    environment:
+      ADMIN_EMAIL: ${MISP_ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${MISP_ADMIN_PASSWORD}
+      GPG_PASSPHRASE: ${MISP_ADMIN_PASSPHRASE}
+      BASE_URL: ${MISP_BASE_URL}
+      MYSQL_HOST: misp_db
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: ${MISP_DB_NAME}
+      MYSQL_USER: ${MISP_DB_USER}
+      MYSQL_PASSWORD: ${MISP_DB_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MISP_ADMIN_EMAIL: ${MISP_ADMIN_EMAIL}
+      MISP_ADMIN_PASSPHRASE: ${MISP_ADMIN_PASSPHRASE}
+      DISABLE_SSL_REDIRECT: "true"
+    ports:
+      - "8081:80"
+      - "8443:443"
+    volumes:
+      - misp_config:/var/www/MISP/app/Config
+      - misp_files:/var/www/MISP/app/files
+      - misp_gpg:/var/www/MISP/.gnupg
+      - ./misp/nginx/includes/misp:/etc/nginx/includes/misp:ro
+    networks:
+      - hunter_net
+
+  opencti:
+    image: opencti/platform:latest
+    container_name: hunter-opencti
+    restart: unless-stopped
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      APP__PORT: 8080
+      APP__BASE_URL: ${OPENCTI_BASE_URL}
+      APP__ADMIN__EMAIL: ${OPENCTI_ADMIN_EMAIL}
+      APP__ADMIN__PASSWORD: ${OPENCTI_ADMIN_PASSWORD}
+      APP__ADMIN__TOKEN: ${OPENCTI_ADMIN_TOKEN}
+      APP__HEALTH_ACCESS_KEY: ${OPENCTI_HEALTH_ACCESS_KEY}
+      APP__ENCRYPTION_KEY: ${OPENCTI_ENCRYPTION_KEY}
+      REDIS__HOSTNAME: redis
+      REDIS__PORT: 6379
+      REDIS__USE_SSL: "false"
+      REDIS__PASSWORD: redispassword
+      ELASTICSEARCH__URL: http://elasticsearch:9200
+      MINIO__ENDPOINT: minio
+      MINIO__PORT: 9000
+      MINIO__USE_SSL: "false"
+      MINIO__ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO__SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      RABBITMQ__HOSTNAME: rabbitmq
+      RABBITMQ__PORT: 5672
+      RABBITMQ__USERNAME: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ__PASSWORD: ${RABBITMQ_DEFAULT_PASSWORD}
+    ports:
+      - "8080:8080"
+    networks:
+      - hunter_net
+
+  cassandra:
+    image: cassandra:4.1
+    container_name: hunter-cassandra
+    restart: unless-stopped
+    environment:
+      CASSANDRA_CLUSTER_NAME: hunter
+      MAX_HEAP_SIZE: 512M
+      HEAP_NEWSIZE: 100M
+    ports:
+      - "9042:9042"
+    volumes:
+      - cassandra_data:/var/lib/cassandra
+    networks:
+      - hunter_net
+
+  thehive:
+    image: strangebee/thehive:5.4.11-1
+    container_name: hunter-thehive
+    restart: unless-stopped
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      cassandra:
+        condition: service_started
+    command:
+      [
+        "--secret",
+        "${TH_SECRET}",
+        "--index-backend",
+        "elasticsearch",
+        "--es-hostnames",
+        "elasticsearch",
+        "--cql-hostnames",
+        "cassandra",
+        "--storage-directory",
+        "/data/files",
+      ]
+    ports:
+      - "9000:9000"
+    volumes:
+      - thehive_data:/data
+    networks:
+      - hunter_net
+
+  cortex:
+    image: thehiveproject/cortex:4.0.1-1
+    container_name: hunter-cortex
+    restart: unless-stopped
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    command:
+      [
+        "--es-uri",
+        "http://elasticsearch:9200",
+        "--secret",
+        "${TH_SECRET}",
+        "--job-directory",
+        "/tmp/cortex-jobs",
+        "--docker-job-directory",
+        "/tmp/cortex-jobs",
+      ]
+    ports:
+      - "9001:9001"
+    volumes:
+      - cortex_jobs:/tmp/cortex-jobs
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - hunter_net
+
+  minio:
+    image: minio/minio:latest
+    container_name: hunter-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "9100:9000"
+      - "9101:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:9000/minio/health/live >/dev/null",
+        ]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    networks:
+      - hunter_net
+
+  vault:
+    build:
+      context: ./vault
+      dockerfile: Dockerfile
+    container_name: hunter-vault
+    restart: unless-stopped
+    cap_add:
+      - IPC_LOCK
+    env_file:
+      - .env
+    environment:
+      VAULT_ADDR: http://127.0.0.1:8200
+      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_DEV_ROOT_TOKEN_ID}
+    volumes:
+      - vault_data:/vault/data
+    ports:
+      - "8200:8200"
+    healthcheck:
+      test: ["CMD", "sh", "-c", "curl -sf http://127.0.0.1:8200/v1/sys/health | grep -q '\"sealed\":false'"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+    networks:
+      - hunter_net
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: hunter-ollama
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c", "ollama serve & sleep 10 && ollama pull llama3.2 && wait"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags >/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - hunter_net
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: hunter-prometheus
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - hunter_net
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: hunter-grafana
+    restart: unless-stopped
+    depends_on:
+      prometheus:
+        condition: service_started
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - hunter_net
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: hunter-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      vault:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    networks:
+      - hunter_net
+
+  celery-worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: hunter-celery-worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    command: celery -A backend.tasks.celery_app.celery_app worker --loglevel=INFO --pool=solo
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      vault:
+        condition: service_healthy
+    networks:
+      - hunter_net
+
+  celery-beat:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: hunter-celery-beat
+    restart: unless-stopped
+    env_file:
+      - .env
+    command: celery -A backend.tasks.celery_app.celery_app beat --loglevel=INFO
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      vault:
+        condition: service_healthy
+    networks:
+      - hunter_net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        REACT_APP_API_URL: ${REACT_APP_API_URL}
+    container_name: hunter-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    networks:
+      - hunter_net
+
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: hunter-nginx
+    restart: unless-stopped
+    environment:
+      HUNTER_TLS_CERT_CN: ${HUNTER_TLS_CERT_CN:-localhost}
+    depends_on:
+      backend:
+        condition: service_started
+      frontend:
+        condition: service_started
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - hunter_net
+
+networks:
+  hunter_net:
+    name: hunter_net
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  elasticsearch_data:
+  rabbitmq_data:
+  misp_db_data:
+  misp_config:
+  misp_files:
+  misp_gpg:
+  cassandra_data:
+  thehive_data:
+  cortex_jobs:
+  minio_data:
+  prometheus_data:
+  grafana_data:
+  vault_data:
+  ollama_data:
+  logstash_data:

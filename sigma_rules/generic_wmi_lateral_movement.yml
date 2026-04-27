@@ -1,0 +1,39 @@
+title: WMI Remote Execution for Lateral Movement
+id: f3d2e1a0-b4c5-6789-3456-789012345679
+status: stable
+description: >
+  Detects WMI-based remote execution patterns in log messages. WMI is abused for
+  fileless lateral movement by frameworks like Impacket (wmiexec.py), CrackMapExec,
+  and Cobalt Strike. The WMI provider host spawning a child process is a reliable signal.
+references:
+  - https://attack.mitre.org/techniques/T1047/
+  - https://attack.mitre.org/techniques/T1021/006/
+author: HUNTER SOC
+date: 2026-04-22
+tags:
+  - attack.lateral_movement
+  - attack.execution
+  - attack.t1047
+  - attack.t1021.006
+logsource:
+  category: generic
+detection:
+  selection_wmi_provider:
+    process.parent.executable|endswith: '\WmiPrvSE.exe'
+    process.executable|endswith:
+      - '\cmd.exe'
+      - '\powershell.exe'
+      - '\wscript.exe'
+      - '\cscript.exe'
+  selection_message:
+    message|contains:
+      - 'WmiPrvSE'
+      - 'wmi exec'
+      - 'wmiexec'
+      - 'Win32_Process'
+      - 'Win32_ProcessStartup'
+  condition: selection_wmi_provider or selection_message
+falsepositives:
+  - Legitimate WMI-based management tools (SCCM, Ansible, Puppet)
+  - Windows built-in management tasks
+level: high

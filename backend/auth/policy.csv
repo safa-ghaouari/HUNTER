@@ -1,0 +1,4 @@
+p, admin_soc, /admin/*, (GET|POST|PUT|PATCH|DELETE)
+p, client, /client/*, GET
+g, admin_soc, admin_soc
+g, client, client

@@ -1,0 +1,33 @@
+title: Pass-the-Hash Network Logon via NTLM
+id: c4a3b2d1-e5f6-7890-abcd-ef1234567890
+status: stable
+description: >
+  Detects a network logon (LogonType 3) authenticated with NTLM on a non-localhost
+  source address — the classic indicator of a Pass-the-Hash lateral movement attempt.
+  Mimikatz sekurlsa::pth, Impacket psexec/wmiexec, and CrackMapExec all trigger this.
+references:
+  - https://attack.mitre.org/techniques/T1550/002/
+  - https://github.com/gentilkiwi/mimikatz
+author: HUNTER SOC
+date: 2026-04-22
+tags:
+  - attack.lateral_movement
+  - attack.t1550.002
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    winlog.event_id: '4624'
+    winlog.event_data.LogonType: '3'
+    winlog.event_data.AuthenticationPackageName: 'NTLM'
+  filter_local:
+    winlog.event_data.IpAddress|startswith:
+      - '127.'
+      - '::1'
+      - '-'
+  condition: selection and not filter_local
+falsepositives:
+  - Legitimate NTLM network authentication from file servers or printers
+  - Domain environments without Kerberos (check source IP context)
+level: high

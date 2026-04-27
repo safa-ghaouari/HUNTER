@@ -1,0 +1,27 @@
+title: SSH Brute Force — Repeated Authentication Failure
+id: b9f8a7c6-d0e1-2345-f012-345678901235
+status: stable
+description: >
+  Detects SSH authentication failures in syslog messages. A single event is
+  LOW severity; the Celery task that calls this rule re-evaluates frequency,
+  but any failure from a non-RFC1918 source warrants immediate attention.
+references:
+  - https://attack.mitre.org/techniques/T1110/001/
+author: HUNTER SOC
+date: 2026-04-22
+tags:
+  - attack.credential_access
+  - attack.t1110.001
+logsource:
+  product: linux
+  service: sshd
+detection:
+  selection:
+    message|contains|all:
+      - 'Failed password'
+      - 'ssh2'
+  condition: selection
+falsepositives:
+  - Users mistyping their password
+  - Automated monitoring systems with incorrect credentials
+level: low

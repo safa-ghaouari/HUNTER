@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>HUNTER Phase 2 Collection Feed</title>
+    <link>https://hunter.local/feeds/phase2</link>
+    <description>Deterministic RSS feed used to validate the Celery-backed collection pipeline.</description>
+    <item>
+      <title>Credential phishing campaign targets finance teams</title>
+      <link>file:///app/backend/fixtures/rss/articles/phishing-finance.html</link>
+      <description>Analysts observed login.badcorp-secure.com serving a phishing kit from 198.51.100.77 and referencing CVE-2026-12345.</description>
+    </item>
+    <item>
+      <title>Malware loader drops archive with hash artifacts</title>
+      <link>file:///app/backend/fixtures/rss/articles/loader-artifacts.html</link>
+      <description>Campaign payload uses sha256 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa and sender alerts@badcorp-secure.com.</description>
+    </item>
+  </channel>
+</rss>
