@@ -1,0 +1,172 @@
+@startuml
+!include theme-white.puml
+title AS-IS HUNTER Backend - Threat Intel And Detection Class Diagram
+
+hide methods
+
+enum IocType {
+  IP
+  DOMAIN
+  URL
+  MD5
+  SHA1
+  SHA256
+  EMAIL
+  FILENAME
+  CVE
+  MUTEX
+  OTHER
+}
+
+enum TlpLevel {
+  CLEAR
+  GREEN
+  AMBER
+  RED
+}
+
+enum Severity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+  INFO
+}
+
+enum ThreatType {
+  MALWARE
+  ACTOR
+  CAMPAIGN
+  TOOL
+  TECHNIQUE
+}
+
+enum AlertStatus {
+  OPEN
+  INVESTIGATING
+  RESOLVED
+  FALSE_POSITIVE
+}
+
+enum AssetType {
+  SERVER
+  WORKSTATION
+  NETWORK_DEVICE
+  CLOUD_INSTANCE
+  OTHER
+}
+
+enum AssetCriticality {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+class Client {
+  +id: UUID
+  +name: string
+}
+
+class User {
+  +id: UUID
+  +email: string
+  +role: string
+}
+
+class HuntingJob {
+  +id: UUID
+  +type: string
+  +status: string
+}
+
+class IoC {
+  +id: UUID
+  +type: IocType
+  +value: text
+  +value_normalized: text
+  +severity: Severity
+  +confidence: int
+  +tlp: TlpLevel
+  +source_type: string
+  +misp_event_id: string?
+  +opencti_id: string?
+  +description: text?
+  +is_active: bool
+  +first_seen_at: datetime
+  +last_seen_at: datetime
+  +enrichment: jsonb?
+  +hunting_job_id: UUID?
+}
+
+class Threat {
+  +id: UUID
+  +name: string
+  +type: ThreatType
+  +description: text?
+  +mitre_techniques: string[]
+  +severity: Severity
+  +hunting_job_id: UUID?
+  +created_at: datetime
+}
+
+class Tag {
+  +id: UUID
+  +name: string
+  +color: string
+  +created_at: datetime
+}
+
+class Asset {
+  +id: UUID
+  +client_id: UUID
+  +hostname: string?
+  +ip_address: inet?
+  +asset_type: AssetType
+  +os: string?
+  +criticality: AssetCriticality
+  +is_active: bool
+  +discovered_at: datetime?
+  +created_at: datetime
+}
+
+class Alert {
+  +id: UUID
+  +client_id: UUID
+  +hunting_job_id: UUID?
+  +asset_id: UUID?
+  +threat_id: UUID?
+  +severity: Severity
+  +status: AlertStatus
+  +title: string
+  +description: text?
+  +raw_log_ref: text?
+  +mitre_technique_id: string?
+  +thehive_case_id: string?
+  +validated_by: UUID?
+  +validated_at: datetime?
+  +created_at: datetime
+  +updated_at: datetime
+}
+
+HuntingJob "0..1" <-- "0..*" IoC : extracted_by
+HuntingJob "0..1" <-- "0..*" Threat : created_by
+HuntingJob "0..1" <-- "0..*" Alert : produced_by
+
+Client "1" <-- "0..*" Asset : owns
+Client "1" <-- "0..*" Alert : scope
+
+Threat "0..*" -- "0..*" IoC : threat_iocs
+Tag "0..*" -- "0..*" IoC : ioc_tags
+Alert "0..*" -- "0..*" IoC : alert_iocs
+
+Threat "0..1" <-- "0..*" Alert : attributed_threat
+Asset "0..1" <-- "0..*" Alert : impacted_asset
+User "0..1" <-- "0..*" Alert : validated_by
+
+note bottom of IoC
+The central detection artifact persisted in PostgreSQL
+and optionally synchronized to MISP and OpenCTI.
+end note
+
+@enduml

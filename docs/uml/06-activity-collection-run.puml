@@ -1,0 +1,64 @@
+@startuml
+!include theme-white.puml
+title AS-IS HUNTER Backend - Activity Diagram - Collection Run
+
+start
+
+partition "API /admin/collections" {
+  :POST /admin/collections;
+  :RBAC check for admin_soc;
+
+  if (source_id provided?) then (yes)
+    :Validate active Source;
+  endif
+
+  :Create HuntingJob\n(type=COLLECTION, status=PENDING);
+  :Commit job in PostgreSQL;
+  :Dispatch run_hunting_job_task.delay(job.id);
+
+  if (Celery dispatch failed?) then (yes)
+    :Update job to FAILED;
+    :Store error_message;
+    stop
+  else (no)
+    :Persist celery_task_id;
+    :Return 201 CollectionRunResponse;
+  endif
+}
+
+partition "Celery Worker / hunting_runner" {
+  :Load HuntingJob from PostgreSQL;
+  :Set status=RUNNING;
+  :Clear previous error_message;
+
+  :Resolve entries from seed_text\nand/or active sources;
+  :Add notes for empty or failed sources;
+
+  if (Any entries available?) then (yes)
+    :For each entry,\nextract IoCs;
+    :Deduplicate IoCs;
+
+    if (Any IoCs extracted?) then (yes)
+      :Persist IoCs in PostgreSQL;
+      :Sync IoCs to MISP;
+      :Sync IoCs to OpenCTI;
+    else (no)
+      :Skip external sync;\nkeep iocs_extracted=0;
+    endif
+
+    :Build result_summary;
+    :Set status=SUCCESS;
+    :Set finished_at;
+    :Commit changes;
+  else (no)
+    :Rollback current transaction;
+    :Reload job;
+    :Set status=FAILED;
+    :Store collector error_message;
+    :Set finished_at;
+    :Commit failure state;
+  endif
+}
+
+stop
+@enduml

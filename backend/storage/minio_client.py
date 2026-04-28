@@ -11,8 +11,8 @@ from backend.config import settings
 def get_minio_client() -> Minio:
     return Minio(
         settings.minio_host,
-        access_key=settings.minio_access_key,
-        secret_key=settings.minio_secret_key,
+        access_key=settings.resolved_minio_access_key,
+        secret_key=settings.resolved_minio_secret_key,
         secure=settings.minio_secure,
     )
 

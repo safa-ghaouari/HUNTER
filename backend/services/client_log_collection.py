@@ -15,10 +15,17 @@ from backend.models.enums import SourceType
 from backend.models.source import Source
 from backend.schemas.log_ingestion import ClientLogCollectionRequest, ClientLogEntry
 from backend.services.log_ingestion import ingest_client_logs
+from backend.services.secureworks_mapping import build_secureworks_log_records
 
 _SUPPORTED_SOURCE_TYPES = {SourceType.SECUREWORKS, SourceType.MANUAL}
 _SOURCE_AUTO_DISABLE_FAILURE_THRESHOLD = 5
 _SOURCE_ERROR_MESSAGE_LIMIT = 1000
+
+
+def _require_active_client(client: Client | None, client_id: UUID) -> Client:
+    if client is None or not client.is_active:
+        raise ValueError(f"Client '{client_id}' was not found or is inactive.")
+    return client
 
 
 def _read_source_payload(source: Source) -> str:
@@ -97,70 +104,29 @@ def _record_source_failure(source: Source, *, error: Exception, failed_at: datet
     )
 
 
-def _secureworks_alert_to_log_entry(alert: dict, *, source_name: str) -> ClientLogEntry:
-    hostnames: list[str] = []
-    ip_addresses: list[str] = []
-    for entity in alert.get("entities") or []:
-        if not isinstance(entity, dict):
-            continue
-        hostname = str(entity.get("hostname") or "").strip()
-        if hostname:
-            hostnames.append(hostname)
-        for ip_address in entity.get("ipAddresses") or []:
-            ip_value = str(ip_address or "").strip()
-            if ip_value:
-                ip_addresses.append(ip_value)
+def _collect_source_logs(source: Source, client: Client, limit: int) -> list[ClientLogEntry]:
+    if source.type == SourceType.MANUAL:
+        payload_text = _read_source_payload(source)
+        return _parse_log_entries(payload_text, limit)
 
-    indicator_values: list[str] = []
-    for indicator in alert.get("indicators") or []:
-        if not isinstance(indicator, dict):
-            continue
-        indicator_type = str(indicator.get("type") or "").strip()
-        indicator_value = str(indicator.get("value") or "").strip()
-        if indicator_value:
-            indicator_values.append(
-                f"{indicator_type}:{indicator_value}" if indicator_type else indicator_value
+    if source.type == SourceType.SECUREWORKS:
+        if not client.api_key_vault_path:
+            raise ValueError(
+                f"Client '{client.name}' does not define a Vault path for Secureworks credentials."
             )
-
-    headline = str(alert.get("headline") or "Secureworks Taegis alert").strip()
-    severity = str(alert.get("severity") or "unknown").strip()
-    status = str(alert.get("status") or "unknown").strip()
-    message_parts = [
-        headline,
-        f"severity={severity}",
-        f"status={status}",
-    ]
-    if indicator_values:
-        message_parts.append(f"indicators={', '.join(indicator_values[:10])}")
-
-    return ClientLogEntry.model_validate(
-        {
-            "timestamp": alert.get("updatedAt") or alert.get("createdAt"),
-            "message": " | ".join(message_parts),
-            "hostname": hostnames[0] if hostnames else None,
-            "ip_address": ip_addresses[0] if ip_addresses else None,
-            "source": source_name,
-            "event_type": "secureworks_alert",
-            "external_id": alert.get("id"),
-            "raw_event": alert,
-        }
-    )
-
-
-def _collect_secureworks_logs(client: Client, source: Source, limit: int) -> list[ClientLogEntry]:
-    if not client.api_key_vault_path:
-        raise ValueError(
-            f"Client '{client.name}' does not define a Vault path for Secureworks credentials."
+        alerts = pull_alerts_for_client(
+            client.api_key_vault_path,
+            client.secureworks_url or source.url,
         )
+        secureworks_logs = build_secureworks_log_records(
+            alerts,
+            limit=limit,
+            source_name=source.name,
+            event_type="secureworks_alert",
+        )
+        return [ClientLogEntry.model_validate(item) for item in secureworks_logs]
 
-    alerts = pull_alerts_for_client(
-        client.api_key_vault_path,
-        client.secureworks_url,
-    )
-    return [
-        _secureworks_alert_to_log_entry(alert, source_name=source.name)
-        for alert in alerts[:limit]
-    ]
+    raise ValueError(f"Unsupported collector type '{source.type.value}'.")
 
 
 async def collect_client_logs(
@@ -169,10 +135,11 @@ async def collect_client_logs(
     client_id: UUID,
     payload: ClientLogCollectionRequest,
 ) -> dict:
-    client_statement = select(Client).where(Client.id == client_id, Client.is_active.is_(True))
-    client = (await session.execute(client_statement)).scalar_one_or_none()
-    if client is None:
-        raise ValueError("Client not found or inactive.")
+    client_statement = select(Client).where(Client.id == client_id)
+    client = _require_active_client(
+        (await session.execute(client_statement)).scalar_one_or_none(),
+        client_id,
+    )
 
     statement = select(Source).where(
         Source.is_active.is_(True),
@@ -201,11 +168,7 @@ async def collect_client_logs(
 
         source.last_attempted_at = datetime.now(timezone.utc)
         try:
-            if source.type == SourceType.SECUREWORKS:
-                source_logs = await asyncio.to_thread(_collect_secureworks_logs, client, source, remaining)
-            else:
-                payload_text = await asyncio.to_thread(_read_source_payload, source)
-                source_logs = _parse_log_entries(payload_text, remaining)
+            source_logs = await asyncio.to_thread(_collect_source_logs, source, client, remaining)
         except Exception as exc:
             notes.append(
                 _record_source_failure(

@@ -1,0 +1,66 @@
+@startuml
+!include theme-white.puml
+title AS-IS HUNTER Backend - Activity Diagram - Client Log Collection
+
+start
+
+partition "API /admin/clients/{client_id}/logs/collect" {
+  :POST /admin/clients/{client_id}/logs/collect;
+  :RBAC check for admin_soc;
+  :Validate active Client;
+  :Load active sources\n(or one requested source);
+
+  if (Any source available?) then (yes)
+    :Continue with collection loop;
+  else (no)
+    :Return 400 - no active source;
+    stop
+  endif
+}
+
+partition "collect_client_logs()" {
+  :Initialize notes, collected_logs,\nprocessed_source_ids, remaining limit;
+
+  while (More sources and remaining > 0?) is (yes)
+    :Read next Source;
+
+    if (Supported type?) then (yes)
+      if (MANUAL source?) then (yes)
+        :Read JSON payload from file/http URL;
+        :Parse ClientLogEntry list;
+      else (SECUREWORKS source)
+        :Pull alerts for client;
+        :Map alerts to ClientLogEntry list;
+      endif
+
+      if (Logs returned?) then (yes)
+        :Append logs to collection;
+        :Update source.last_polled_at;
+        :Add success note;
+      else (no)
+        :Add note: no logs returned;
+      endif
+    else (no)
+      :Add note: source skipped\n(unsupported collector type);
+    endif
+  endwhile (done)
+
+  if (Any collected log?) then (yes)
+    :Call ingest_client_logs();
+  else (no)
+    :Return 400 - no client logs collected;
+    stop
+  endif
+}
+
+partition "ingest_client_logs()" {
+  :Normalize message text;
+  :Extract observable fields\n(IPs, domains, URLs, hashes, emails, CVEs);
+  :Build Elasticsearch documents;
+  :Bulk index documents into Elasticsearch;
+  :Commit updated last_polled_at values;
+  :Return collection summary;
+}
+
+stop
+@enduml

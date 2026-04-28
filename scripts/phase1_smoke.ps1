@@ -1,8 +1,8 @@
 param(
-    [string]$ApiBaseUrl = "http://localhost:8000",
-    [string]$GatewayBaseUrl = "http://localhost",
-    [string]$TlsGatewayBaseUrl = "https://localhost",
-    [string]$VaultBaseUrl = "http://localhost:8200",
+    [string]$ApiBaseUrl = "http://127.0.0.1:8000",
+    [string]$GatewayBaseUrl = "http://127.0.0.1",
+    [string]$TlsGatewayBaseUrl = "https://127.0.0.1",
+    [string]$VaultBaseUrl = "http://127.0.0.1:8200",
     [string]$AdminEmail = "soc.admin@hunter.local",
     [string]$AdminPassword = "HunterAdmin2026Secure",
     [string]$VaultToken = "hunter-vault-root-token-2026"

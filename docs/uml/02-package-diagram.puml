@@ -1,0 +1,64 @@
+@startuml
+!include theme-white.puml
+title AS-IS HUNTER Backend - Package Diagram
+
+top to bottom direction
+
+package "backend.main" as PMain
+package "backend.api.routes" as PRoutes
+package "backend.auth" as PAuth
+package "backend.schemas" as PSchemas
+package "backend.models" as PModels
+package "backend.services" as PServices
+package "backend.tasks" as PTasks
+package "backend.integrations" as PIntegrations
+package "backend.storage" as PStorage
+package "backend.db" as PDb
+package "backend.config" as PConfig
+
+PMain ..> PRoutes : include_router()
+PMain ..> PDb : engine / sessions
+PMain ..> PModels : Base / User
+PMain ..> PAuth : password bootstrap
+PMain ..> PStorage : init_bucket()
+PMain ..> PConfig : settings
+
+PRoutes ..> PAuth : JWT + RBAC
+PRoutes ..> PSchemas : request / response DTOs
+PRoutes ..> PDb : AsyncSession dependency
+PRoutes ..> PModels : ORM entities
+PRoutes ..> PServices : business logic
+PRoutes ..> PTasks : Celery dispatch
+PRoutes ..> PIntegrations : direct connector calls
+PRoutes ..> PStorage : presigned downloads
+
+PAuth ..> PDb : current user lookup
+PAuth ..> PModels : User
+PAuth ..> PConfig : secret key / token TTL
+
+PSchemas ..> PModels : enums / response mapping
+
+PServices ..> PModels : domain entities
+PServices ..> PIntegrations : external systems
+PServices ..> PStorage : MinIO uploads
+PServices ..> PDb : AsyncSessionLocal
+PServices ..> PTasks : NLP helper import
+PServices ..> PConfig : settings
+
+PTasks ..> PServices : orchestration
+PTasks ..> PDb : async sessions
+PTasks ..> PModels : HuntingJob / IoC / Threat
+PTasks ..> PConfig : Celery configuration
+
+PIntegrations ..> PConfig : URLs / tokens / API keys
+PIntegrations ..> PModels : IoC / enums
+
+PStorage ..> PConfig : MinIO settings
+PDb ..> PConfig : DATABASE_URL
+
+note bottom of PServices
+Main orchestration entry point:
+backend.services.hunting_runner.run_hunting_job()
+end note
+
+@enduml

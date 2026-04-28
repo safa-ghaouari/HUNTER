@@ -28,13 +28,13 @@ services:
     image: redis:7
     container_name: hunter-redis
     restart: unless-stopped
-    command: redis-server --requirepass redispassword
+    command: redis-server --requirepass ${REDIS_PASSWORD}
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "redispassword", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping"]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -208,7 +208,7 @@ services:
       REDIS__HOSTNAME: redis
       REDIS__PORT: 6379
       REDIS__USE_SSL: "false"
-      REDIS__PASSWORD: redispassword
+      REDIS__PASSWORD: ${REDIS_PASSWORD}
       ELASTICSEARCH__URL: http://elasticsearch:9200
       MINIO__ENDPOINT: minio
       MINIO__PORT: 9000
@@ -471,7 +471,7 @@ services:
     container_name: hunter-frontend
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3002:3000"
     networks:
       - hunter_net
 

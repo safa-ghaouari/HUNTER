@@ -1,0 +1,89 @@
+@startuml
+!include theme-white.puml
+title AS-IS HUNTER Backend - Activity Diagram - Full Hunt
+
+start
+
+partition "API /admin/hunting" {
+  :POST /admin/hunting;
+  :RBAC check for admin_soc;
+
+  if (client_id provided?) then (yes)
+    :Validate active Client;
+  endif
+
+  if (source_id provided?) then (yes)
+    :Validate active Source;
+  endif
+
+  :Create HuntingJob\n(type=FULL_HUNT, status=PENDING);
+  :Commit job in PostgreSQL;
+  :Dispatch run_hunting_job_task.delay(job.id);
+
+  if (Celery dispatch failed?) then (yes)
+    :Update job to FAILED;
+    :Store error_message;
+    stop
+  else (no)
+    :Persist celery_task_id;
+    :Return 201 HuntingJobResponse;
+  endif
+}
+
+partition "Celery Worker / hunting_runner" {
+  :Load HuntingJob from PostgreSQL;
+  :Set status=RUNNING;
+  :Resolve entries from seed_text\nand/or active sources;
+
+  if (Any entries available?) then (yes)
+    :For each entry,\nextract IoCs;
+    :Deduplicate IoCs;
+
+    if (Any IoCs extracted?) then (yes)
+      :Persist IoCs in PostgreSQL;
+      :Sync IoCs to MISP;
+      :Sync IoCs to OpenCTI;
+      :Create Threat row;
+    else (no)
+      :Raise failure:\nno IoCs extracted;
+      :Mark HuntingJob FAILED;
+      stop
+    endif
+
+    :Run NLP pipeline\n(NER + classification + clustering + RAG);
+
+    if (NLP step failed?) then (yes)
+      :Store NLP error inside result_summary;\ncontinue full hunt;
+    else (no)
+      :Persist NLP block on job and update Threat;
+    endif
+
+    if (client_id present?) then (yes)
+      :Correlate IoCs against Elasticsearch client logs;
+      :Create or update Assets;
+      :Create Alerts;
+      :Enrich matched IoCs;
+      :Open TheHive cases;
+
+      :Create Report row\n(status=GENERATING);
+      :Build PDF bytes;
+      :Upload PDF to MinIO;
+      :Update Report to READY;
+    else (no)
+      :Skip correlation and report generation;
+    endif
+
+    :Build result_summary;
+    :Set HuntingJob SUCCESS;
+    :Set finished_at;
+    :Commit changes;
+  else (no)
+    :Mark HuntingJob FAILED;
+    :Store collector error_message;
+    :Set finished_at;
+    :Commit failure state;
+  endif
+}
+
+stop
+@enduml

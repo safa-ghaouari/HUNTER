@@ -80,7 +80,7 @@ RUN pip install --no-cache-dir \
 RUN pip install --no-cache-dir \
     "pytest==8.2.2" \
     "pytest-asyncio==0.23.7" \
-    "httpx==0.27.0" \
+    "httpx==0.28.1" \
     "pytest-mock==3.14.0"
 
 # ── spaCy model — direct wheel install (avoids malformed URL from `spacy download`) ──

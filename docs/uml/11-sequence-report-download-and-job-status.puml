@@ -1,0 +1,59 @@
+@startuml
+!include theme-white.puml
+title AS-IS HUNTER Backend - Sequence Diagram - Report Download And Job Status
+
+autonumber
+
+actor "Client User" as ClientUser
+control "Reports Router" as ReportsRouter
+database "PostgreSQL" as PG
+database "MinIO" as MinIO
+
+ClientUser -> ReportsRouter : GET /client/reports/{report_id}/download
+ReportsRouter -> PG : Load report by id
+PG --> ReportsRouter : Report / null
+
+alt Report belongs to authenticated client\nand status=READY
+  ReportsRouter -> MinIO : presigned_get_object(report.minio_object_key)
+  MinIO --> ReportsRouter : download_url
+  ReportsRouter --> ClientUser : 200 ReportDownloadResponse
+else Wrong client scope
+  ReportsRouter --> ClientUser : 404 Report not found
+else File not ready
+  ReportsRouter --> ClientUser : 409 Report file is not ready
+end
+
+newpage
+
+title AS-IS HUNTER Backend - Sequence Diagram - WebSocket Job Status
+
+actor "Authenticated User" as AuthUser
+boundary "WS /ws/jobs/{job_id}" as WS
+control "JWT Service" as JwtSvc
+database "PostgreSQL" as PG2
+
+AuthUser -> WS : Connect ?token=<access_token>
+WS -> JwtSvc : verify_token(token)
+
+alt Invalid token
+  WS --> AuthUser : close(4001, Unauthorized)
+else Valid token
+  WS --> AuthUser : accept()
+
+  loop Poll every 2 seconds while job exists\nand status is not terminal
+    WS -> PG2 : select HuntingJob by id
+    PG2 --> WS : HuntingJob / null
+
+    alt Job not found
+      WS --> AuthUser : {"error":"Job not found"}
+      WS --> AuthUser : close(4004, Job not found)
+    else Job found
+      WS --> AuthUser : JSON job payload
+      opt status in {success, failed, cancelled}
+        WS --> AuthUser : close(1000, Job completed)
+      end
+    end
+  end
+end
+
+@enduml

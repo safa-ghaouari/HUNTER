@@ -45,3 +45,14 @@ langchain-community==0.2.6
 # Phase 4 — Sigma rule engine
 pySigma==0.11.17
 pySigma-backend-elasticsearch==1.1.2
+
+# Report generation
+weasyprint==60.2
+pydyf==0.8.0
+jinja2==3.1.4
+
+# QA
+pytest==8.2.2
+pytest-asyncio==0.23.7
+httpx==0.28.1
+pytest-mock==3.14.0

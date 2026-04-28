@@ -1,0 +1,11 @@
+@startuml
+!include theme-white.puml
+title AS-IS HUNTER Backend - State Diagram - Report
+
+[*] --> GENERATING
+GENERATING --> READY : PDF uploaded to MinIO
+GENERATING --> FAILED : generation error
+READY --> [*]
+FAILED --> [*]
+
+@enduml

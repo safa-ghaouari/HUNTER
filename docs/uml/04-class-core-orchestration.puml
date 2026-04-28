@@ -1,0 +1,135 @@
+@startuml
+!include theme-white.puml
+title AS-IS HUNTER Backend - Core Orchestration Class Diagram
+
+hide methods
+
+enum UserRole {
+  ADMIN_SOC
+  CLIENT
+}
+
+enum SourceType {
+  RSS
+  MISP_FEED
+  OTX
+  ABUSE_CH
+  CIRCL
+  SECUREWORKS
+  MANUAL
+}
+
+enum ConnectionType {
+  OPENVAS
+  SECUREWORKS
+  ONPREMISE
+}
+
+enum JobType {
+  COLLECTION
+  NLP
+  CORRELATION
+  REPORT_GEN
+  FULL_HUNT
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+enum ReportType {
+  THREAT_HUNT
+  EXECUTIVE_SUMMARY
+  IOC_REPORT
+  INCIDENT
+}
+
+enum ReportStatus {
+  GENERATING
+  READY
+  FAILED
+}
+
+class User {
+  +id: UUID
+  +email: string
+  +hashed_password: string
+  +role: UserRole
+  +client_id: UUID?
+  +is_active: bool
+  +created_at: datetime
+}
+
+class Client {
+  +id: UUID
+  +name: string
+  +vpn_ip: string?
+  +api_key_vault_path: string
+  +is_active: bool
+  +connection_type: string?
+  +openvas_url: string?
+  +secureworks_url: string?
+  +created_at: datetime
+}
+
+class Source {
+  +id: UUID
+  +name: string
+  +type: SourceType
+  +url: string?
+  +api_key_vault_path: string?
+  +is_active: bool
+  +polling_interval_minutes: int
+  +last_polled_at: datetime?
+  +created_at: datetime
+}
+
+class HuntingJob {
+  +id: UUID
+  +celery_task_id: string?
+  +type: JobType
+  +status: JobStatus
+  +client_id: UUID?
+  +source_id: UUID?
+  +initiated_by: UUID
+  +params: jsonb
+  +result_summary: jsonb?
+  +error_message: text?
+  +started_at: datetime?
+  +finished_at: datetime?
+  +created_at: datetime
+}
+
+class Report {
+  +id: UUID
+  +client_id: UUID
+  +hunting_job_id: UUID?
+  +generated_by: UUID
+  +report_type: ReportType
+  +title: string
+  +period_start: date?
+  +period_end: date?
+  +status: ReportStatus
+  +minio_object_key: string?
+  +file_size_bytes: int?
+  +created_at: datetime
+}
+
+Client "0..1" <-- "0..*" User : belongs_to
+Client "0..1" <-- "0..*" HuntingJob : scope
+Source "0..1" <-- "0..*" HuntingJob : target_source
+User "1" <-- "0..*" HuntingJob : initiated_by
+Client "1" <-- "0..*" Report : owner
+User "1" <-- "0..*" Report : generated_by
+HuntingJob "0..1" <-- "0..*" Report : summarizes
+
+note bottom of HuntingJob
+The async orchestration aggregate used by
+/admin/collections and /admin/hunting.
+end note
+
+@enduml

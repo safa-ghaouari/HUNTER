@@ -1,0 +1,46 @@
+@startuml
+!include theme-white.puml
+title AS-IS HUNTER Backend - Sequence Diagram - Authentication
+
+autonumber
+
+actor User
+boundary "Web UI" as WebUI
+control "Auth Router" as AuthRouter
+database "PostgreSQL" as PG
+control "Password Service" as PasswordSvc
+control "JWT Service" as JwtSvc
+control "RBAC Dependency" as Rbac
+
+User -> WebUI : Enter email + password
+WebUI -> AuthRouter : POST /auth/login
+AuthRouter -> PG : select User by email\nand is_active=true
+PG --> AuthRouter : User / null
+AuthRouter -> PasswordSvc : verify_password(plain, hash)
+PasswordSvc --> AuthRouter : true / false
+
+alt Invalid credentials
+  AuthRouter --> WebUI : 401 Unauthorized
+else Valid credentials
+  AuthRouter -> JwtSvc : create_access_token(user_id, role, client_id)
+  JwtSvc --> AuthRouter : access_token
+  AuthRouter --> WebUI : 200 TokenResponse
+end
+
+== Protected request ==
+
+User -> WebUI : Open protected screen
+WebUI -> Rbac : GET /admin/alerts\nAuthorization: Bearer <token>
+Rbac -> JwtSvc : verify_token(token)
+JwtSvc --> Rbac : payload{sub, role, client_id}
+Rbac -> PG : select active User by payload.sub
+PG --> Rbac : User / null
+Rbac -> Rbac : Casbin enforce(role, path, method)
+
+alt Allowed
+  Rbac --> WebUI : request may continue
+else Denied
+  Rbac --> WebUI : 403 Forbidden
+end
+
+@enduml

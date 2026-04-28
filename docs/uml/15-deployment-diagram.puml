@@ -1,0 +1,102 @@
+@startuml
+!include theme-white.puml
+title AS-IS HUNTER Platform - Deployment Diagram
+
+left to right direction
+
+node "User Device" as UserDevice {
+  artifact "Browser" as Browser
+}
+
+cloud "Docker Host / docker-compose" as DockerHost {
+  node "Edge" as Edge {
+    artifact "nginx" as Nginx
+  }
+
+  node "Frontend Tier" as FrontTier {
+    artifact "frontend" as Frontend
+  }
+
+  node "Application Tier" as AppTier {
+    artifact "backend" as Backend
+    artifact "celery-worker" as CeleryWorker
+    artifact "celery-beat" as CeleryBeat
+  }
+
+  node "Core Data Services" as DataTier {
+    database "postgres" as PG
+    database "redis" as Redis
+    database "elasticsearch" as ES
+    artifact "kibana" as Kibana
+    artifact "minio" as MinIO
+    artifact "vault" as Vault
+  }
+
+  node "Intel And Response Stack" as IntelTier {
+    artifact "misp" as MISP
+    artifact "opencti" as OpenCTI
+    artifact "rabbitmq" as RabbitMQ
+    database "cassandra" as Cassandra
+    artifact "thehive" as TheHive
+    artifact "cortex" as Cortex
+  }
+
+  node "Observability" as ObsTier {
+    artifact "prometheus" as Prometheus
+    artifact "grafana" as Grafana
+  }
+}
+
+cloud "External Client Systems" as ExternalSystems {
+  artifact "Secureworks API" as SecureworksAPI
+  artifact "OpenVAS" as OpenVAS
+}
+
+Browser --> Nginx : HTTPS
+Nginx --> Frontend : reverse proxy
+Nginx --> Backend : /api + /ws
+
+Backend --> PG
+Backend --> Redis
+Backend --> ES
+Backend --> MinIO
+Backend --> Vault
+Backend --> MISP
+Backend --> OpenCTI
+Backend --> TheHive
+Backend --> SecureworksAPI
+Backend --> OpenVAS
+
+CeleryWorker --> PG
+CeleryWorker --> Redis
+CeleryWorker --> ES
+CeleryWorker --> MinIO
+CeleryWorker --> Vault
+CeleryWorker --> MISP
+CeleryWorker --> OpenCTI
+CeleryWorker --> TheHive
+CeleryWorker --> SecureworksAPI
+CeleryWorker --> OpenVAS
+
+CeleryBeat --> Redis
+CeleryBeat --> PG
+
+Kibana --> ES
+Prometheus --> Backend : /metrics
+Grafana --> Prometheus
+
+OpenCTI --> RabbitMQ
+OpenCTI --> Redis
+OpenCTI --> ES
+OpenCTI --> MinIO
+
+TheHive --> Cassandra
+TheHive --> ES
+
+note bottom of Cortex
+Deployed in docker-compose,
+but not directly invoked by the
+current backend application code.
+end note
+
+@enduml

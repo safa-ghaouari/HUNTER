@@ -1,0 +1,16 @@
+@startuml
+!include theme-white.puml
+title AS-IS HUNTER Backend - State Diagram - HuntingJob
+
+[*] --> PENDING
+PENDING --> RUNNING : worker starts job
+RUNNING --> SUCCESS : processing completed
+RUNNING --> FAILED : unhandled exception / no input / no IoCs
+PENDING --> FAILED : Celery dispatch failure
+PENDING --> CANCELLED : manual cancellation
+RUNNING --> CANCELLED : manual cancellation
+SUCCESS --> [*]
+FAILED --> [*]
+CANCELLED --> [*]
+
+@enduml

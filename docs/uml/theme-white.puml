@@ -1,0 +1,62 @@
+' Shared white theme for all PlantUML diagrams in this folder.
+skinparam backgroundColor White
+skinparam shadowing false
+skinparam dpi 160
+skinparam defaultFontName Segoe UI
+skinparam ArrowColor #334155
+skinparam roundcorner 12
+skinparam linetype ortho
+skinparam packageStyle rectangle
+skinparam componentStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam defaultTextAlignment center
+
+skinparam TitleFontColor #0F172A
+skinparam NoteBackgroundColor #F8FAFC
+skinparam NoteBorderColor #94A3B8
+skinparam LegendBackgroundColor #FFFFFF
+skinparam LegendBorderColor #CBD5E1
+
+skinparam PackageBackgroundColor #FFFFFF
+skinparam PackageBorderColor #475569
+
+skinparam ComponentBackgroundColor #F8FAFC
+skinparam ComponentBorderColor #475569
+
+skinparam RectangleBackgroundColor #F8FAFC
+skinparam RectangleBorderColor #475569
+
+skinparam ClassBackgroundColor #F8FAFC
+skinparam ClassBorderColor #475569
+skinparam ClassArrowColor #334155
+
+skinparam ActivityBackgroundColor #F8FAFC
+skinparam ActivityBorderColor #475569
+skinparam ActivityDiamondBackgroundColor #FFFFFF
+skinparam ActivityDiamondBorderColor #475569
+skinparam ActivityArrowColor #334155
+
+skinparam UsecaseBackgroundColor #F8FAFC
+skinparam UsecaseBorderColor #475569
+
+skinparam SequenceParticipantBackgroundColor #F8FAFC
+skinparam SequenceParticipantBorderColor #475569
+skinparam SequenceLifeLineBorderColor #94A3B8
+skinparam SequenceLifeLineBackgroundColor #FFFFFF
+skinparam SequenceArrowColor #334155
+skinparam SequenceGroupBorderColor #94A3B8
+skinparam SequenceGroupBackgroundColor #FFFFFF
+
+skinparam StateBackgroundColor #F8FAFC
+skinparam StateBorderColor #475569
+
+skinparam NodeBackgroundColor #FFFFFF
+skinparam NodeBorderColor #475569
+skinparam ArtifactBackgroundColor #F8FAFC
+skinparam ArtifactBorderColor #475569
+skinparam DatabaseBackgroundColor #F8FAFC
+skinparam DatabaseBorderColor #475569
+skinparam CloudBackgroundColor #FFFFFF
+skinparam CloudBorderColor #475569
+
+hide stereotype

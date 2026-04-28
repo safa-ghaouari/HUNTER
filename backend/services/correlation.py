@@ -5,10 +5,14 @@ from uuid import UUID
 from sqlalchemy import cast, or_, select
 from sqlalchemy.dialects.postgresql import INET
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from backend.integrations.elasticsearch_client import search_client_logs_by_ioc
+from backend.integrations.enrichment_client import enrich_ioc
+from backend.integrations.thehive_client import create_case_for_alert
 from backend.models.alert import Alert
 from backend.models.asset import Asset
+from backend.models.client import Client
 from backend.models.enums import (
     AlertStatus,
     AssetCriticality,
@@ -122,6 +126,57 @@ def _build_alert_description(hit_source: dict, matched_iocs: list[IoC]) -> str:
     return "\n".join(lines)
 
 
+def _summarize_enrichment(ioc: IoC) -> str | None:
+    enrichment = ioc.enrichment or {}
+    providers: list[str] = []
+
+    virustotal = enrichment.get("virustotal")
+    if isinstance(virustotal, dict) and virustotal.get("found"):
+        providers.append(
+            "virustotal "
+            f"malicious={virustotal.get('malicious', 0)} "
+            f"suspicious={virustotal.get('suspicious', 0)}"
+        )
+
+    shodan = enrichment.get("shodan")
+    if isinstance(shodan, dict) and shodan.get("found"):
+        open_ports = shodan.get("open_ports", [])
+        providers.append(f"shodan ports={len(open_ports)}")
+
+    abuseipdb = enrichment.get("abuseipdb")
+    if isinstance(abuseipdb, dict) and abuseipdb.get("found"):
+        providers.append(
+            "abuseipdb "
+            f"score={abuseipdb.get('abuse_confidence_score', 0)} "
+            f"reports={abuseipdb.get('total_reports', 0)}"
+        )
+
+    if not providers:
+        return None
+
+    return f"{ioc.type.value}:{ioc.value_normalized} -> {'; '.join(providers)}"
+
+
+async def _enrich_matched_iocs(matched_iocs: list[IoC]) -> list[str]:
+    summaries: list[str] = []
+
+    for ioc in matched_iocs:
+        if not ioc.enrichment:
+            ioc.enrichment = await asyncio.to_thread(enrich_ioc, ioc.type, ioc.value_normalized)
+            flag_modified(ioc, "enrichment")
+
+        summary = _summarize_enrichment(ioc)
+        if summary:
+            summaries.append(summary)
+
+    return summaries
+
+
+async def _resolve_client_name(session: AsyncSession, client_id: UUID) -> str | None:
+    statement = select(Client.name).where(Client.id == client_id)
+    return (await session.execute(statement)).scalar_one_or_none()
+
+
 async def correlate_iocs_for_client(
     session: AsyncSession,
     *,
@@ -131,6 +186,7 @@ async def correlate_iocs_for_client(
     threat: Threat | None = None,
 ) -> list[Alert]:
     grouped_hits: dict[str, dict] = {}
+    client_name = await _resolve_client_name(session, client_id)
 
     for ioc in iocs:
         hits = await asyncio.to_thread(
@@ -173,6 +229,10 @@ async def correlate_iocs_for_client(
         asset_criticality = asset.criticality if asset is not None else AssetCriticality.MEDIUM
         severity = _score_severity(primary_ioc.severity, asset_criticality)
         asset_name = _asset_label(hostname, ip_address)
+        enrichment_lines = await _enrich_matched_iocs(matched_iocs)
+        description = _build_alert_description(hit_source, matched_iocs)
+        if enrichment_lines:
+            description = f"{description}\nEnrichment:\n" + "\n".join(enrichment_lines)
 
         alert = Alert(
             client_id=client_id,
@@ -182,7 +242,7 @@ async def correlate_iocs_for_client(
             severity=severity,
             status=AlertStatus.OPEN,
             title=f"{primary_ioc.type.value.upper()} {primary_ioc.value_normalized} detected on {asset_name}",
-            description=_build_alert_description(hit_source, matched_iocs),
+            description=description,
             raw_log_ref=f"{hit.get('_index')}:{hit.get('_id')}",
             mitre_technique_id=primary_technique,
         )
@@ -191,6 +251,25 @@ async def correlate_iocs_for_client(
         created_alerts.append(alert)
 
     if created_alerts:
+        await session.flush()
+        for alert in created_alerts:
+            try:
+                case_result = await asyncio.to_thread(
+                    create_case_for_alert,
+                    title=alert.title,
+                    alert_description=alert.description,
+                    severity=alert.severity.value,
+                    client_name=client_name,
+                    matched_iocs=list(alert.iocs),
+                    tags=[f"client-{str(client_id)[:8]}"],
+                )
+            except Exception:
+                continue
+
+            alert.thehive_case_id = case_result["case_id"]
+            if alert.status == AlertStatus.OPEN:
+                alert.status = AlertStatus.INVESTIGATING
+
         await session.flush()
 
     return created_alerts

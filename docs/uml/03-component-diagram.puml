@@ -1,0 +1,231 @@
+@startuml
+skinparam backgroundColor White
+skinparam shadowing false
+skinparam dpi 160
+skinparam defaultFontName Segoe UI
+skinparam ArrowColor #334155
+skinparam roundcorner 12
+skinparam linetype ortho
+skinparam packageStyle rectangle
+skinparam componentStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam defaultTextAlignment center
+
+skinparam TitleFontColor #0F172A
+skinparam NoteBackgroundColor #F8FAFC
+skinparam NoteBorderColor #94A3B8
+skinparam LegendBackgroundColor #FFFFFF
+skinparam LegendBorderColor #CBD5E1
+
+skinparam PackageBackgroundColor #FFFFFF
+skinparam PackageBorderColor #475569
+
+skinparam ComponentBackgroundColor #F8FAFC
+skinparam ComponentBorderColor #475569
+
+skinparam RectangleBackgroundColor #F8FAFC
+skinparam RectangleBorderColor #475569
+
+skinparam ClassBackgroundColor #F8FAFC
+skinparam ClassBorderColor #475569
+skinparam ClassArrowColor #334155
+
+skinparam ActivityBackgroundColor #F8FAFC
+skinparam ActivityBorderColor #475569
+skinparam ActivityDiamondBackgroundColor #FFFFFF
+skinparam ActivityDiamondBorderColor #475569
+skinparam ActivityArrowColor #334155
+
+skinparam UsecaseBackgroundColor #F8FAFC
+skinparam UsecaseBorderColor #475569
+
+skinparam SequenceParticipantBackgroundColor #F8FAFC
+skinparam SequenceParticipantBorderColor #475569
+skinparam SequenceLifeLineBorderColor #94A3B8
+skinparam SequenceLifeLineBackgroundColor #FFFFFF
+skinparam SequenceArrowColor #334155
+skinparam SequenceGroupBorderColor #94A3B8
+skinparam SequenceGroupBackgroundColor #FFFFFF
+
+skinparam StateBackgroundColor #F8FAFC
+skinparam StateBorderColor #475569
+
+skinparam NodeBackgroundColor #FFFFFF
+skinparam NodeBorderColor #475569
+skinparam ArtifactBackgroundColor #F8FAFC
+skinparam ArtifactBorderColor #475569
+skinparam DatabaseBackgroundColor #F8FAFC
+skinparam DatabaseBorderColor #475569
+skinparam CloudBackgroundColor #FFFFFF
+skinparam CloudBorderColor #475569
+
+hide stereotype
+
+title AS-IS HUNTER Backend - Component Diagram
+
+left to right direction
+
+package "API Layer" {
+  [FastAPI App] as FastAPI
+  [JWT Service] as JwtSvc
+  [RBAC Service] as RbacSvc
+  [Password Service] as PasswordSvc
+  [Auth Router] as AuthRouter
+  [Clients Router] as ClientsRouter
+  [Client Logs Router] as ClientLogsRouter
+  [Sources Router] as SourcesRouter
+  [Collections Router] as CollectionsRouter
+  [Hunting Router] as HuntingRouter
+  [Alerts Router] as AlertsRouter
+  [IoCs Router] as IocsRouter
+  [Reports Router] as ReportsRouter
+  [WebSocket Job Status Endpoint] as WsEndpoint
+}
+
+package "Async Tasks" {
+  [Celery Worker] as CeleryWorker
+  [Celery Beat Scheduler] as CeleryBeat
+  [Collection Scheduler Service] as CollectionScheduler
+}
+
+package "Business Services" {
+  [Hunting Runner] as HuntingRunner
+  [Source Collection Service] as SourceCollection
+  [IoC Extraction Service] as IocExtraction
+  [NLP Pipeline Service] as NlpSvc
+  [Intelligence Sync Service] as IntelSync
+  [Correlation Service] as CorrSvc
+  [Client Log Collection Service] as ClientLogCollection
+  [Log Ingestion Service] as LogIngestion
+  [IoC Enrichment Service] as EnrichSvc
+  [MinIO Storage Service] as MinioSvc
+}
+
+package "External Systems" {
+  database "PostgreSQL" as PG
+  database "Elasticsearch" as ES
+  artifact "MinIO" as MinIO
+  artifact "Vault" as Vault
+  [Threat Intel Feeds\n(RSS / OTX / Abuse.ch / CIRCL)] as Feeds
+  [MISP] as MISP
+  [OpenCTI] as OpenCTI
+  [TheHive] as TheHive
+  [Secureworks API] as SecureworksAPI
+  [OpenVAS] as OpenVASApi
+  [Ollama] as Ollama
+  [VirusTotal] as VT
+  [Shodan] as Shodan
+  [AbuseIPDB] as AbuseIPDB
+}
+
+FastAPI --> AuthRouter
+FastAPI --> ClientsRouter
+FastAPI --> ClientLogsRouter
+FastAPI --> SourcesRouter
+FastAPI --> CollectionsRouter
+FastAPI --> HuntingRouter
+FastAPI --> AlertsRouter
+FastAPI --> IocsRouter
+FastAPI --> ReportsRouter
+FastAPI --> WsEndpoint
+
+AuthRouter --> PasswordSvc
+AuthRouter --> JwtSvc
+AuthRouter --> PG
+
+ClientsRouter --> RbacSvc
+ClientsRouter --> PG
+ClientsRouter --> Vault
+ClientsRouter --> OpenVASApi : test client connection
+ClientsRouter --> SecureworksAPI : test client connection
+
+ClientLogsRouter --> RbacSvc
+ClientLogsRouter --> PG
+ClientLogsRouter --> ClientLogCollection
+ClientLogsRouter --> LogIngestion
+
+SourcesRouter --> RbacSvc
+SourcesRouter --> PG
+SourcesRouter --> Vault
+
+CollectionsRouter --> RbacSvc
+CollectionsRouter --> PG
+CollectionsRouter --> CeleryWorker : dispatch collection job
+
+HuntingRouter --> RbacSvc
+HuntingRouter --> PG
+HuntingRouter --> CeleryWorker : dispatch full hunt
+
+AlertsRouter --> RbacSvc
+AlertsRouter --> PG
+
+IocsRouter --> RbacSvc
+IocsRouter --> PG
+IocsRouter --> EnrichSvc
+
+ReportsRouter --> RbacSvc
+ReportsRouter --> PG
+ReportsRouter --> MinioSvc
+
+WsEndpoint --> JwtSvc
+WsEndpoint --> PG
+
+RbacSvc --> JwtSvc
+RbacSvc --> PG
+
+CeleryBeat --> CollectionScheduler
+CollectionScheduler --> PG
+CollectionScheduler --> CeleryWorker : enqueue due collection jobs
+
+CeleryWorker --> HuntingRunner
+CeleryWorker --> NlpSvc : standalone NLP re-run
+
+HuntingRunner --> PG
+HuntingRunner --> SourceCollection
+HuntingRunner --> IocExtraction
+HuntingRunner --> IntelSync
+HuntingRunner --> NlpSvc
+HuntingRunner --> CorrSvc
+HuntingRunner --> MinioSvc
+
+SourceCollection --> Feeds
+SourceCollection --> Vault
+
+IntelSync --> MISP
+IntelSync --> OpenCTI
+IntelSync --> PG
+
+NlpSvc --> PG
+NlpSvc --> Ollama
+
+CorrSvc --> ES
+CorrSvc --> PG
+CorrSvc --> EnrichSvc
+CorrSvc --> TheHive
+
+ClientLogCollection --> PG
+ClientLogCollection --> SecureworksAPI
+ClientLogCollection --> LogIngestion
+
+LogIngestion --> ES
+
+EnrichSvc --> VT
+EnrichSvc --> Shodan
+EnrichSvc --> AbuseIPDB
+
+MinioSvc --> MinIO
+
+note bottom of HuntingRunner
+Main orchestration entry point for asynchronous jobs.
+It resolves inputs, extracts IoCs, runs NLP,
+optionally correlates against client logs,
+and may generate a report.
+end note
+
+note bottom of CorrSvc
+Correlation matches IoCs against Elasticsearch client-log indices,
+creates Assets and Alerts in PostgreSQL,
+and opens TheHive cases for created alerts.
+end note
+
+@enduml

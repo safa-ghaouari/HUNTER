@@ -1,0 +1,77 @@
+@startuml
+!include theme-white.puml
+title AS-IS HUNTER Backend - Sequence Diagram - Full Hunt Execution
+
+autonumber
+
+actor "SOC Admin" as Admin
+control "Hunting Router" as HuntingRouter
+database "PostgreSQL" as PG
+participant "Celery Worker" as CeleryWorker
+control "Hunting Runner" as HuntingRunner
+control "Source Collection Service" as SourceCollection
+control "IoC Extraction Service" as IocExtraction
+participant "MISP" as MISP
+participant "OpenCTI" as OpenCTI
+control "NLP Pipeline" as NLPPipeline
+database "Elasticsearch" as ES
+control "Correlation Service" as CorrSvc
+participant "TheHive" as TheHive
+database "MinIO" as MinIO
+
+Admin -> HuntingRouter : POST /admin/hunting
+HuntingRouter -> PG : Validate client / source if provided
+HuntingRouter -> PG : Insert HuntingJob(type=FULL_HUNT,\nstatus=PENDING)
+PG --> HuntingRouter : job.id
+HuntingRouter -> CeleryWorker : run_hunting_job_task.delay(job.id)
+CeleryWorker --> HuntingRouter : celery_task_id
+HuntingRouter -> PG : Update HuntingJob.celery_task_id
+HuntingRouter --> Admin : 201 HuntingJobResponse
+
+== Asynchronous execution ==
+
+CeleryWorker -> HuntingRunner : run_hunting_job(job.id)
+HuntingRunner -> PG : Load job + set RUNNING
+HuntingRunner -> SourceCollection : Resolve entries from seed_text\nand/or active sources
+note over SourceCollection
+Queries RSS feeds, JSON feeds, Abuse.ch CSV,
+OTX / CIRCL style sources, and manual seed text.
+end note
+SourceCollection --> HuntingRunner : entries + notes
+
+loop For each collected entry
+  HuntingRunner -> IocExtraction : extract_iocs(text, source_type, prefix)
+  IocExtraction --> HuntingRunner : extracted IoCs
+end
+
+HuntingRunner -> PG : Persist deduplicated IoCs
+HuntingRunner -> MISP : create event + attributes
+MISP --> HuntingRunner : event id / uuid
+HuntingRunner -> OpenCTI : create indicators + grouping
+OpenCTI --> HuntingRunner : indicator ids / grouping id
+HuntingRunner -> PG : Insert Threat
+HuntingRunner -> NLPPipeline : run_nlp_for_job()
+NLPPipeline --> HuntingRunner : NLP result or error block
+
+alt client_id present
+  HuntingRunner -> CorrSvc : correlate_iocs_for_client()
+  CorrSvc -> ES : search_client_logs_by_ioc()
+  ES --> CorrSvc : matching log hits
+  CorrSvc -> PG : Upsert Assets + create Alerts
+  CorrSvc -> TheHive : create case per created alert
+  TheHive --> CorrSvc : case ids
+  CorrSvc --> HuntingRunner : alerts created
+
+  HuntingRunner -> PG : Insert Report(status=GENERATING)
+  HuntingRunner -> MinIO : upload_file(report.pdf)
+  MinIO --> HuntingRunner : object stored
+  HuntingRunner -> PG : Update Report READY\n+ update result_summary\n+ set HuntingJob SUCCESS
+else no client scope
+  HuntingRunner -> PG : Update result_summary\n+ set HuntingJob SUCCESS
+end
+
+alt Unhandled exception
+  HuntingRunner -> PG : Mark HuntingJob FAILED\n+ store error_message
+end
+
+@enduml

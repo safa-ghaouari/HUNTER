@@ -1,0 +1,69 @@
+@startuml
+!include theme-white.puml
+title AS-IS HUNTER Backend - Use Case Diagram
+
+left to right direction
+
+actor "SOC Admin" as Admin
+actor "Client User" as ClientUser
+actor "Scheduler" as Scheduler
+actor "Secureworks API" as Secureworks
+actor "OpenVAS" as OpenVAS
+
+rectangle "HUNTER Backend" {
+  usecase "S'authentifier" as UC_Login
+  usecase "Gerer clients" as UC_Clients
+  usecase "Gerer utilisateurs client" as UC_ClientUsers
+  usecase "Gerer sources TI" as UC_Sources
+  usecase "Tester connexion client" as UC_TestConn
+  usecase "Ingerer logs client" as UC_IngestLogs
+  usecase "Collecter logs client" as UC_CollectLogs
+  usecase "Lancer une collecte" as UC_Collection
+  usecase "Lancer un full hunt" as UC_FullHunt
+  usecase "Suivre un job" as UC_TrackJob
+  usecase "Recevoir statut temps reel\nvia WebSocket" as UC_WS
+  usecase "Consulter alertes" as UC_Alerts
+  usecase "Consulter IoCs" as UC_Iocs
+  usecase "Enrichir un IoC" as UC_EnrichIoc
+  usecase "Consulter rapports" as UC_Reports
+  usecase "Telecharger rapport" as UC_Download
+}
+
+Admin -- UC_Login
+Admin -- UC_Clients
+Admin -- UC_ClientUsers
+Admin -- UC_Sources
+Admin -- UC_TestConn
+Admin -- UC_IngestLogs
+Admin -- UC_CollectLogs
+Admin -- UC_Collection
+Admin -- UC_FullHunt
+Admin -- UC_TrackJob
+Admin -- UC_WS
+Admin -- UC_Alerts
+Admin -- UC_Iocs
+Admin -- UC_EnrichIoc
+Admin -- UC_Reports
+
+ClientUser -- UC_Login
+ClientUser -- UC_Alerts
+ClientUser -- UC_Reports
+ClientUser -- UC_Download
+ClientUser -- UC_WS
+
+Scheduler -- UC_Collection
+Secureworks -- UC_CollectLogs
+Secureworks -- UC_TestConn
+OpenVAS -- UC_TestConn
+
+UC_TrackJob .> UC_WS : <<include>>
+UC_Reports .> UC_Download : <<extend>>
+
+note right of UC_FullHunt
+Creates a HuntingJob, dispatches Celery,
+collects intelligence, extracts IoCs,
+optionally correlates against client logs,
+and may generate a PDF report.
+end note
+
+@enduml

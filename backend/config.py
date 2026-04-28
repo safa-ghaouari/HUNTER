@@ -14,8 +14,10 @@ class Settings(BaseSettings):
     vault_token: str = Field(alias="VAULT_TOKEN")
 
     minio_endpoint: str = Field(alias="MINIO_ENDPOINT")
-    minio_access_key: str = Field(alias="MINIO_ACCESS_KEY")
-    minio_secret_key: str = Field(alias="MINIO_SECRET_KEY")
+    minio_access_key: str | None = Field(default=None, alias="MINIO_ACCESS_KEY")
+    minio_secret_key: str | None = Field(default=None, alias="MINIO_SECRET_KEY")
+    minio_root_user: str | None = Field(default=None, alias="MINIO_ROOT_USER")
+    minio_root_password: str | None = Field(default=None, alias="MINIO_ROOT_PASSWORD")
     minio_bucket: str = Field(alias="MINIO_BUCKET")
 
     redis_url: str = Field(alias="REDIS_URL")
@@ -36,7 +38,10 @@ class Settings(BaseSettings):
     opencti_token: str = Field(alias="OPENCTI_TOKEN")
 
     thehive_url: str = Field(alias="THEHIVE_URL")
-    thehive_api_key: str = Field(alias="THEHIVE_API_KEY")
+    thehive_api_key: str | None = Field(default=None, alias="THEHIVE_API_KEY")
+    thehive_admin_login: str | None = Field(default=None, alias="THEHIVE_ADMIN_LOGIN")
+    thehive_admin_password: str | None = Field(default=None, alias="THEHIVE_ADMIN_PASSWORD")
+    thehive_organisation: str | None = Field(default=None, alias="THEHIVE_ORGANISATION")
 
     bootstrap_admin_email: str | None = Field(default=None, alias="BOOTSTRAP_ADMIN_EMAIL")
     bootstrap_admin_password: str | None = Field(default=None, alias="BOOTSTRAP_ADMIN_PASSWORD")
@@ -68,6 +73,14 @@ class Settings(BaseSettings):
     @property
     def minio_secure(self) -> bool:
         return self.minio_parsed_endpoint.scheme == "https"
+
+    @property
+    def resolved_minio_access_key(self) -> str:
+        return (self.minio_access_key or self.minio_root_user or "").strip()
+
+    @property
+    def resolved_minio_secret_key(self) -> str:
+        return (self.minio_secret_key or self.minio_root_password or "").strip()
 
     @property
     def resolved_celery_broker_url(self) -> str:

@@ -1,0 +1,12 @@
+@startuml
+!include theme-white.puml
+title AS-IS HUNTER Backend - State Diagram - Alert
+
+[*] --> OPEN
+OPEN --> INVESTIGATING : TheHive case created / analyst picks up alert
+INVESTIGATING --> RESOLVED : threat confirmed and remediated
+INVESTIGATING --> FALSE_POSITIVE : analyst dismisses detection
+RESOLVED --> [*]
+FALSE_POSITIVE --> [*]
+
+@enduml
